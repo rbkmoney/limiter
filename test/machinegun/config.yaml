@@ -1,0 +1,17 @@
+service_name: machinegun
+
+erlang:
+    secret_cookie_file: "/opt/machinegun/etc/cookie"
+
+namespaces:
+    limit_cfg:
+        processor:
+            url: http://limiter:8022/v1/stateproc/limit_cfg
+            pool_size: 500
+    limit:
+        processor:
+            url: http://limiter:8022/v1/stateproc/limit
+            pool_size: 500
+
+storage:
+    type: memory

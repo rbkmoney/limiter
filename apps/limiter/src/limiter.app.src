@@ -6,6 +6,9 @@
         kernel,
         stdlib,
         damsel,
+        limiter_proto,
+        machinery,
+        bender_client,
         woody,
         how_are_you,  % must be after ranch and before any woody usage
         scoper,  % should be before any scoper event handler usage
