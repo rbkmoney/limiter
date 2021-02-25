@@ -21,8 +21,7 @@
 
 -export_type([forbidden_operation_amount_error/0]).
 
--spec construct_postings(account_id(), account_id(), amount(), currency()) ->
-    [posting()].
+-spec construct_postings(account_id(), account_id(), amount(), currency()) -> [posting()].
 construct_postings(
     AccountFrom,
     AccountTo,
@@ -39,8 +38,7 @@ construct_postings(
         }
     ].
 
--spec reverse_postings([posting()]) ->
-    [posting()].
+-spec reverse_postings([posting()]) -> [posting()].
 reverse_postings(Postings) ->
     [
         Posting#accounter_Posting{
@@ -50,8 +48,7 @@ reverse_postings(Postings) ->
         || Posting = #accounter_Posting{from_id = AccountFrom, to_id = AccountTo} <- Postings
     ].
 
--spec assert_partial_posting_amount([posting()], [posting()]) ->
-    ok | {error, forbidden_operation_amount_error()}.
+-spec assert_partial_posting_amount([posting()], [posting()]) -> ok | {error, forbidden_operation_amount_error()}.
 assert_partial_posting_amount(
     [#accounter_Posting{amount = Partial, currency_sym_code = Currency} | _Rest],
     [#accounter_Posting{amount = Full, currency_sym_code = Currency} | _Rest]

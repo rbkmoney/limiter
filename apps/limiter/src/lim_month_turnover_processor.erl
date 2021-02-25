@@ -35,10 +35,12 @@ get_limit(LimitID, Config, LimitContext) ->
             unwrap(lim_range_machine:get_range_balance(Timestamp, LimitRange, LimitContext)),
         #limiter_Limit{
             id = LimitID,
-            body = #limiter_LimitBody{cash = #limiter_base_Cash{
-                amount = Amount,
-                currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
-            }},
+            body = #limiter_LimitBody{
+                cash = #limiter_base_Cash{
+                    amount = Amount,
+                    currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
+                }
+            },
             creation_time = lim_config_machine:created_at(Config)
             % description = lim_config_machine:description(Config)
         }
@@ -53,10 +55,12 @@ hold(
     LimitChange = #limiter_LimitChange{
         id = LimitID,
         operation_timestamp = Timestamp,
-        body = #limiter_LimitBody{cash = #limiter_base_Cash{
-            amount = Amount,
-            currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
-        }}
+        body = #limiter_LimitBody{
+            cash = #limiter_base_Cash{
+                amount = Amount,
+                currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
+            }
+        }
     },
     _Config,
     LimitContext

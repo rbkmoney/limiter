@@ -150,8 +150,7 @@ get_range_balance(Timestamp, State, LimitContext) ->
     {ok, time_range()}
     | {error,
         {limit_range, notfound}
-        | {inconsistent_timestamp, timestamp()}
-    }.
+        | {inconsistent_timestamp, timestamp()}}.
 ensure_range_exist(ID, StartTimestamp, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),

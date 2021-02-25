@@ -9,8 +9,7 @@
 
 -import(lim_pipeline, [do/1, unwrap/1]).
 
--spec ensure_exist(name(), lim_context()) ->
-    {ok, lim_accounting:account_id()} | {error, _TODO}.
+-spec ensure_exist(name(), lim_context()) -> {ok, lim_accounting:account_id()} | {error, _TODO}.
 ensure_exist(Name, LimitContext) ->
     do(fun() ->
         Timestamp = lim_time:to_rfc3339(lim_time:now()),

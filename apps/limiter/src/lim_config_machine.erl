@@ -124,8 +124,7 @@ start(Params, LimitContext) ->
         unwrap(get(ID, LimitContext))
     end).
 
--spec get(lim_id(), lim_context()) ->
-    {ok, config()} | {error, {limit, notfound}}.
+-spec get(lim_id(), lim_context()) -> {ok, config()} | {error, {limit, notfound}}.
 get(ID, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
@@ -136,8 +135,7 @@ get(ID, LimitContext) ->
         Config
     end).
 
--spec get_limit(lim_id(), lim_context()) ->
-    _GetResult.
+-spec get_limit(lim_id(), lim_context()) -> _GetResult.
 get_limit(ID, LimitContext) ->
     do(fun() ->
         Config = #{processor := Processor} = unwrap(get(ID, LimitContext)),
@@ -145,8 +143,7 @@ get_limit(ID, LimitContext) ->
         Handler:get_limit(ID, Config, LimitContext)
     end).
 
--spec hold(lim_change(), lim_context()) ->
-    _HoldResult.
+-spec hold(lim_change(), lim_context()) -> _HoldResult.
 hold(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
         Config = #{processor := Processor} = unwrap(get(ID, LimitContext)),
@@ -154,8 +151,7 @@ hold(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
         Handler:hold(LimitChange, Config, LimitContext)
     end).
 
--spec commit(lim_change(), lim_context()) ->
-    _CommitResult.
+-spec commit(lim_change(), lim_context()) -> _CommitResult.
 commit(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
         Config = #{processor := Processor} = unwrap(get(ID, LimitContext)),
@@ -163,8 +159,7 @@ commit(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
         Handler:commit(LimitChange, Config, LimitContext)
     end).
 
--spec rollback(lim_change(), lim_context()) ->
-    _RollbackResult.
+-spec rollback(lim_change(), lim_context()) -> _RollbackResult.
 rollback(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
         Config = #{processor := Processor} = unwrap(get(ID, LimitContext)),

@@ -60,4 +60,4 @@ mk_limit_config(<<"GlobalMonthTurnover">>) ->
         time_range => month
     }};
 mk_limit_config(_) ->
-    {error, {inconsistent_request,  {name, notfound}}}.
+    {error, {inconsistent_request, {name, notfound}}}.
