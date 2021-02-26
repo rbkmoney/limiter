@@ -70,7 +70,7 @@
 -type handler_opts() :: machinery:handler_opts(_).
 -type result(A) :: machinery:result(none(), A).
 
--define(NS, lim_config).
+-define(NS, 'lim_config/v1').
 
 %% Handler behaviour
 
@@ -197,7 +197,7 @@ get_machine_state(#{aux_state := State}) ->
 
 -spec get_backend(woody_context()) -> machinery_mg_backend:backend().
 get_backend(WoodyCtx) ->
-    lim_utils:get_backend(config, WoodyCtx).
+    lim_utils:get_backend(?NS, WoodyCtx).
 
 -spec not_implemented(any()) -> no_return().
 not_implemented(What) ->

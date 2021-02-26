@@ -2,6 +2,7 @@
 
 -export([call/4]).
 -export([call/5]).
+-export([get_service_client_url/1]).
 
 -define(APP, limiter).
 -define(DEFAULT_DEADLINE, 5000).
@@ -31,6 +32,8 @@ get_service_client_config(ServiceName) ->
     ServiceClients = genlib_app:env(?APP, service_clients, #{}),
     maps:get(ServiceName, ServiceClients, #{}).
 
+-spec get_service_client_url(atom()) ->
+    lim_maybe:maybe(woody:url()).
 get_service_client_url(ServiceName) ->
     maps:get(url, get_service_client_config(ServiceName), undefined).
 

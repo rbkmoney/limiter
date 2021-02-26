@@ -1,37 +1,25 @@
 -module(lim_utils).
 
 -export([get_backend/2]).
+-export([get_woody_client/1]).
 
--type schema() :: machinery_mg_schema_generic | atom().
--type event_handler() :: woody:ev_handler() | [woody:ev_handler()].
 -type woody_context() :: woody_context:ctx().
 
--type automaton() :: #{
-    % machinegun's automaton url
-    url := binary(),
-    event_handler := event_handler(),
-    % state processor path
-    path => binary(),
-    schema => schema(),
-    transport_opts => woody_client_thrift_http_transport:transport_options()
-}.
-
 -spec get_backend(atom(), woody_context()) -> machinery_mg_backend:backend().
-get_backend(Service, WoodyCtx) ->
-    Automaton = genlib_app:env(limiter, Service, #{}),
-    machinery_mg_backend:new(WoodyCtx, #{
-        client => get_woody_client(Automaton),
-        schema => maps:get(schema, Automaton, machinery_mg_schema_generic)
-    }).
+get_backend(NS, WoodyCtx) ->
+    Backend = maps:get(NS, genlib_app:env(limiter, backends, #{})),
+    {Mod, Opts} = machinery_utils:get_backend(Backend),
+    {Mod, Opts#{
+        woody_ctx => WoodyCtx
+    }}.
 
 %%% Internal functions
 
--spec get_woody_client(automaton()) -> machinery_mg_client:woody_client().
-get_woody_client(#{url := Url} = Automaton) ->
+-spec get_woody_client(woody:url()) -> machinery_mg_client:woody_client().
+get_woody_client(Url) ->
     genlib_map:compact(#{
         url => Url,
-        event_handler => get_woody_event_handlers(),
-        transport_opts => maps:get(transport_opts, Automaton, undefined)
+        event_handler => get_woody_event_handlers()
     }).
 
 -spec get_woody_event_handlers() -> woody:ev_handlers().

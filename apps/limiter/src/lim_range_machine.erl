@@ -30,7 +30,7 @@
 -type machine() :: machinery:machine(event(), _).
 -type handler_args() :: machinery:handler_args(_).
 -type handler_opts() :: machinery:handler_opts(_).
--type result() :: machinery:result(event(), none()).
+-type result() :: machinery:result(timestamped_event(event()), none()).
 -type response(T) :: machinery:response(T).
 
 %%
@@ -46,6 +46,9 @@
     created_at := timestamp(),
     ranges => [time_range()]
 }.
+
+-type timestamped_event(T) ::
+    {ev, timestamp(), T}.
 
 -type event() ::
     {created, limit_range()}
@@ -77,7 +80,10 @@
 -type add_range_error() ::
     {inconsistent_timestamp, timestamp()}.
 
--define(NS, lim_range).
+-export_type([timestamped_event/1]).
+-export_type([event/0]).
+
+-define(NS, 'lim_range/v1').
 
 -import(lim_pipeline, [do/1, unwrap/1, unwrap/2]).
 
@@ -252,7 +258,7 @@ collapse(#{history := History}) ->
 
 -spec get_backend(woody_context()) -> machinery_mg_backend:backend().
 get_backend(WoodyCtx) ->
-    lim_utils:get_backend(config, WoodyCtx).
+    lim_utils:get_backend(?NS, WoodyCtx).
 
 -spec not_implemented(any()) -> no_return().
 not_implemented(What) ->
