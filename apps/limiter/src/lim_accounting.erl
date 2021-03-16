@@ -9,6 +9,7 @@
 -export([rollback/3]).
 -export([get_plan/2]).
 -export([get_balance/2]).
+-export([get_default_currency/0]).
 -export([create_account/0]).
 -export([create_account/1]).
 -export([create_account/2]).
@@ -67,22 +68,22 @@ commit(PlanID, Batches, LimitContext) ->
 rollback(PlanID, Batches, LimitContext) ->
     do('RollbackPlan', construct_plan(PlanID, Batches), LimitContext).
 
--spec get_plan(plan_id(), lim_context()) -> {ok, [batch()]} | {error, not_found}.
+-spec get_plan(plan_id(), lim_context()) -> {ok, [batch()]} | {error, notfound}.
 get_plan(PlanID, LimitContext) ->
     case call_accounter('GetPlan', {PlanID}, LimitContext) of
         {ok, #accounter_PostingPlan{batch_list = BatchList}} ->
             {ok, decode_batch_list(BatchList)};
         {exception, #accounter_PlanNotFound{}} ->
-            {error, not_found}
+            {error, notfound}
     end.
 
--spec get_balance(account_id(), lim_context()) -> {ok, balance()} | {error, not_found}.
+-spec get_balance(account_id(), lim_context()) -> {ok, balance()} | {error, notfound}.
 get_balance(AccountID, LimitContext) ->
     case call_accounter('GetAccountByID', {AccountID}, LimitContext) of
         {ok, Result} ->
             {ok, construct_balance(AccountID, Result)};
         {exception, #accounter_AccountNotFound{}} ->
-            {error, not_found}
+            {error, notfound}
     end.
 
 do(Op, Plan, LimitContext) ->
@@ -134,16 +135,20 @@ construct_balance(
         currency => Currency
     }.
 
--spec create_account() -> {ok, account_id()} | {error, not_found}.
+-spec get_default_currency() -> currency().
+get_default_currency() ->
+    ?DEFAULT_CURRENCY.
+
+-spec create_account() -> {ok, account_id()}.
 create_account() ->
     {ok, LimitContext} = lim_context:create(woody_context:new()),
     create_account(LimitContext).
 
--spec create_account(lim_context()) -> {ok, account_id()} | {error, not_found}.
+-spec create_account(lim_context()) -> {ok, account_id()}.
 create_account(LimitContext) ->
     create_account(?DEFAULT_CURRENCY, LimitContext).
 
--spec create_account(currency(), lim_context()) -> {ok, account_id()} | {error, not_found}.
+-spec create_account(currency(), lim_context()) -> {ok, account_id()}.
 create_account(CurrencyCode, LimitContext) ->
     create_account(CurrencyCode, undefined, LimitContext).
 

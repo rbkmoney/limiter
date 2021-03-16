@@ -1,4 +1,4 @@
--module(lim_range_machinery_schema).
+-module(lim_config_machinery_schema).
 
 %% Storage schema behaviour
 -behaviour(machinery_mg_schema).
@@ -18,8 +18,8 @@
 -type value_type() :: machinery_mg_schema:vt().
 -type context() :: machinery_mg_schema:context().
 
--type event() :: lim_range_machine:timestamped_event(lim_range_machine:event()).
--type aux_state() :: #{}.
+-type event() :: {}.
+-type aux_state() :: lim_config_machine:state().
 -type call_args() :: term().
 -type call_response() :: term().
 
@@ -33,18 +33,18 @@
 
 -spec get_version(value_type()) -> machinery_mg_schema:version().
 get_version(event) ->
-    ?CURRENT_EVENT_FORMAT_VERSION;
+    undefined;
 get_version(aux_state) ->
-    undefined.
+    ?CURRENT_EVENT_FORMAT_VERSION.
 
 -spec marshal(type(), value(data()), context()) -> {machinery_msgpack:t(), context()}.
-marshal({event, Format}, TimestampedChange, Context) ->
-    marshal_event(Format, TimestampedChange, Context);
+marshal({aux_state, FormatVersion}, State, Context) ->
+    marshal_aux_state(FormatVersion, State, Context);
 marshal(T, V, C) when
     T =:= {args, init} orelse
         T =:= {args, call} orelse
         T =:= {args, repair} orelse
-        T =:= {aux_state, undefined} orelse
+        T =:= {event, undefined} orelse
         T =:= {response, call} orelse
         T =:= {response, {repair, success}} orelse
         T =:= {response, {repair, failure}}
@@ -52,13 +52,13 @@ marshal(T, V, C) when
     machinery_mg_schema_generic:marshal(T, V, C).
 
 -spec unmarshal(type(), machinery_msgpack:t(), context()) -> {data(), context()}.
-unmarshal({event, FormatVersion}, EncodedChange, Context) ->
-    unmarshal_event(FormatVersion, EncodedChange, Context);
+unmarshal({aux_state, FormatVersion}, EncodedState, Context) ->
+    unmarshal_aux_state(FormatVersion, EncodedState, Context);
 unmarshal(T, V, C) when
     T =:= {args, init} orelse
         T =:= {args, call} orelse
         T =:= {args, repair} orelse
-        T =:= {aux_state, undefined} orelse
+        T =:= {event, undefined} orelse
         T =:= {response, call} orelse
         T =:= {response, {repair, success}} orelse
         T =:= {response, {repair, failure}}
@@ -67,15 +67,10 @@ unmarshal(T, V, C) when
 
 %% Internals
 
--spec marshal_event(machinery_mg_schema:version(), event(), context()) -> {machinery_msgpack:t(), context()}.
-marshal_event(1, TimestampedChange, Context) ->
-    ThriftChange = lim_range_codec:marshal(timestamped_change, TimestampedChange),
-    Type = {struct, struct, {lim_limiter_thrift, 'TimestampedChange'}},
-    {{bin, lim_proto_utils:serialize(Type, ThriftChange)}, Context}.
+-spec marshal_aux_state(machinery_mg_schema:version(), aux_state(), context()) -> {machinery_msgpack:t(), context()}.
+marshal_aux_state(1, AuxState, Context) ->
+    machinery_mg_schema_generic:marshal({aux_state, 1}, AuxState, Context).
 
--spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) -> {event(), context()}.
-unmarshal_event(1, EncodedChange, Context) ->
-    {bin, EncodedThriftChange} = EncodedChange,
-    Type = {struct, struct, {lim_limiter_thrift, 'TimestampedChange'}},
-    ThriftChange = lim_proto_utils:deserialize(Type, EncodedThriftChange),
-    {lim_range_codec:unmarshal(timestamped_change, ThriftChange), Context}.
+-spec unmarshal_aux_state(machinery_mg_schema:version(), machinery_msgpack:t(), context()) -> {aux_state(), context()}.
+unmarshal_aux_state(1, EncodedAuxState, Context) ->
+    machinery_mg_schema_generic:unmarshal({aux_state, 1}, EncodedAuxState, Context).

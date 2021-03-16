@@ -143,7 +143,7 @@ construct_machinery_modernizer_spec(NS, Schema) ->
 get_namespace_schema('lim_range/v1') ->
     lim_range_machinery_schema;
 get_namespace_schema('lim_config/v1') ->
-    machinery_mg_schema_generic.
+    lim_config_machinery_schema.
 
 get_service_client(ServiceID) ->
     case lim_client_woody:get_service_client_url(ServiceID) of

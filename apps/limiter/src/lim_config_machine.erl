@@ -6,10 +6,12 @@
 %% Accessors
 
 -export([created_at/1]).
+-export([id/1]).
+-export([description/1]).
 
 %% API
 
--export([start/2]).
+-export([start/3]).
 -export([get/2]).
 
 -export([get_limit/2]).
@@ -20,6 +22,7 @@
 -type woody_context() :: woody_context:ctx().
 -type lim_context() :: lim_context:t().
 -type processor_type() :: binary().
+-type description() :: binary().
 
 -type config() :: #{
     id := lim_id(),
@@ -28,7 +31,8 @@
     type => turnover,
     scope => global,
     body_type => cash,
-    time_range => month
+    time_range => month,
+    description => description()
 }.
 
 -type create_params() :: #{
@@ -36,7 +40,8 @@
     type => turnover,
     scope => global,
     body_type => cash,
-    time_range => month
+    time_range => month,
+    description => description()
 }.
 
 -type lim_id() :: lim_limiter_thrift:'LimitID'().
@@ -50,6 +55,7 @@
 -export_type([lim_change/0]).
 -export_type([limit/0]).
 -export_type([timestamp/0]).
+-export_type([state/0]).
 
 %% Machinery callbacks
 
@@ -78,91 +84,103 @@
     ID :: lim_id(),
     Config :: config(),
     LimitContext :: lim_context()
-) -> _GetResult.
+) -> {ok, limit()} | {error, get_limit_error()}.
 
 -callback hold(
     LimitChange :: lim_change(),
     Config :: config(),
     LimitContext :: lim_context()
-) -> _HoldResult.
+) -> ok | {error, hold_error()}.
 
 -callback commit(
     LimitChange :: lim_change(),
     Config :: config(),
     LimitContext :: lim_context()
-) -> _CommitResult.
+) -> ok | {error, commit_error()}.
 
 -callback rollback(
     LimitChange :: lim_change(),
     Config :: config(),
     LimitContext :: lim_context()
-) -> _RollbackResult.
+) -> ok | {error, rollback_error()}.
+
+-type get_limit_error() :: lim_month_turnover_processor:get_limit_error().
+-type hold_error() :: lim_month_turnover_processor:hold_error().
+-type commit_error() :: lim_month_turnover_processor:commit_error().
+-type rollback_error() :: lim_month_turnover_processor:rollback_error().
+
+-type config_error() :: {handler | config, notfound}.
 
 -import(lim_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
 
--spec created_at(config()) -> lim_maybe:maybe(timestamp()).
+-spec created_at(config()) -> timestamp().
 created_at(#{created_at := CreatedAt}) ->
-    lim_time:to_rfc3339(CreatedAt);
-created_at(_) ->
+    lim_time:to_rfc3339(CreatedAt).
+
+-spec id(config()) -> lim_id().
+id(#{id := ID}) ->
+    ID.
+
+-spec description(config()) -> lim_maybe:maybe(description()).
+description(#{description := ID}) ->
+    ID;
+description(_) ->
     undefined.
 
 %%
 
--spec start(create_params(), lim_context()) -> {ok, config()} | {error, notfound}.
-start(Params, LimitContext) ->
-    do(fun() ->
-        {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
-        {ok, {ID, _}} = bender_generator_client:gen_snowflake(WoodyCtx),
-        _ = machinery:start(
-            ?NS,
-            ID,
-            Params#{id => ID, created_at => lim_time:now()},
-            get_backend(WoodyCtx)
-        ),
-        unwrap(get(ID, LimitContext))
-    end).
+-spec start(lim_id(), create_params(), lim_context()) -> {ok, config()}.
+start(ID, Params, LimitContext) ->
+    {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
+    Config = genlib_map:compact(Params#{id => ID, created_at => lim_time:now()}),
+    _ = machinery:start(?NS, ID, Config, get_backend(WoodyCtx)),
+    {ok, Config}.
 
--spec get(lim_id(), lim_context()) -> {ok, config()} | {error, {limit, notfound}}.
+-spec get(lim_id(), lim_context()) -> {ok, config()} | {error, notfound}.
 get(ID, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
-        Machine = unwrap(limit, machinery:get(?NS, ID, get_backend(WoodyCtx))),
+        Machine = unwrap(machinery:get(?NS, ID, get_backend(WoodyCtx))),
         #{
             config := Config
         } = get_machine_state(Machine),
         Config
     end).
 
--spec get_limit(lim_id(), lim_context()) -> _GetResult.
+-spec get_limit(lim_id(), lim_context()) ->
+    {ok, limit()} | {error, config_error() | get_limit_error()}.
 get_limit(ID, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(get(ID, LimitContext)),
+        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
         Handler = unwrap(handler, lim_router:get_handler(Processor)),
         Handler:get_limit(ID, Config, LimitContext)
     end).
 
--spec hold(lim_change(), lim_context()) -> _HoldResult.
+-spec hold(lim_change(), lim_context()) ->
+    ok | {error, config_error() | hold_error()}.
 hold(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(get(ID, LimitContext)),
+        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
         Handler = unwrap(handler, lim_router:get_handler(Processor)),
         Handler:hold(LimitChange, Config, LimitContext)
     end).
 
--spec commit(lim_change(), lim_context()) -> _CommitResult.
+-spec commit(lim_change(), lim_context()) ->
+    ok | {error, config_error() | commit_error()}.
 commit(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(get(ID, LimitContext)),
+        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
         Handler = unwrap(handler, lim_router:get_handler(Processor)),
         Handler:commit(LimitChange, Config, LimitContext)
     end).
 
--spec rollback(lim_change(), lim_context()) -> _RollbackResult.
+-spec rollback(lim_change(), lim_context()) ->
+    ok | {error, config_error() | rollback_error()}.
 rollback(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(get(ID, LimitContext)),
+        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
         Handler = unwrap(handler, lim_router:get_handler(Processor)),
         Handler:rollback(LimitChange, Config, LimitContext)
     end).

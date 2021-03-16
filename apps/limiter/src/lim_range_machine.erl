@@ -11,11 +11,10 @@
 
 -export([get/2]).
 -export([ensure_exist/2]).
--export([add_range/3]).
 -export([get_range/2]).
 -export([get_range_balance/3]).
 -export([ensure_range_exist/3]).
--export([ensure_range_exist_/3]).
+-export([ensure_range_exist_in_state/3]).
 
 %% Machinery callbacks
 
@@ -61,7 +60,8 @@
 }.
 
 -type time_range() :: #{
-    account_id := lim_accounting:account_id(),
+    account_id_from := lim_accounting:account_id(),
+    account_id_to := lim_accounting:account_id(),
     upper := timestamp(),
     lower := timestamp()
 }.
@@ -76,9 +76,6 @@
 
 -type range_call() ::
     {add_range, timestamp()}.
-
--type add_range_error() ::
-    {inconsistent_timestamp, timestamp()}.
 
 -export_type([timestamped_event/1]).
 -export_type([event/0]).
@@ -132,13 +129,6 @@ ensure_exist(Params = #{id := ID}, LimitContext) ->
             end
     end.
 
--spec add_range(lim_id(), timestamp(), lim_context()) -> ok | {error, notfound}.
-add_range(ID, StartTimestamp, LimitContext) ->
-    do(fun() ->
-        {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
-        unwrap(call(ID, {add_range, StartTimestamp}, WoodyCtx))
-    end).
-
 -spec get_range(timestamp(), limit_range_state()) -> {ok, time_range()} | {error, notfound}.
 get_range(Timestamp, State) ->
     find_time_range(Timestamp, ranges(State)).
@@ -148,26 +138,23 @@ get_range(Timestamp, State) ->
     | {error, {range | account, notfound}}.
 get_range_balance(Timestamp, State, LimitContext) ->
     do(fun() ->
-        #{account_id := AccountID} = unwrap(range, find_time_range(Timestamp, ranges(State))),
+        #{account_id_to := AccountID} = unwrap(range, find_time_range(Timestamp, ranges(State))),
         unwrap(account, lim_accounting:get_balance(AccountID, LimitContext))
     end).
 
 -spec ensure_range_exist(lim_id(), timestamp(), lim_context()) ->
     {ok, time_range()}
-    | {error,
-        {limit_range, notfound}
-        | {inconsistent_timestamp, timestamp()}}.
+    | {error, {limit_range, notfound}}.
 ensure_range_exist(ID, StartTimestamp, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
         State = unwrap(limit_range, get_state(ID, WoodyCtx)),
-        unwrap(ensure_range_exist_(StartTimestamp, State, LimitContext))
+        unwrap(ensure_range_exist_in_state(StartTimestamp, State, LimitContext))
     end).
 
--spec ensure_range_exist_(timestamp(), limit_range_state(), lim_context()) ->
-    {ok, time_range()}
-    | {error, {inconsistent_timestamp, timestamp()}}.
-ensure_range_exist_(StartTimestamp, State, LimitContext) ->
+-spec ensure_range_exist_in_state(timestamp(), limit_range_state(), lim_context()) ->
+    {ok, time_range()}.
+ensure_range_exist_in_state(StartTimestamp, State, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
         case find_time_range(StartTimestamp, ranges(State)) of
@@ -187,24 +174,19 @@ init(Events, _Machine, _HandlerArgs, _HandlerOpts) ->
     }.
 
 -spec process_call(args(range_call()), machine(), handler_args(), handler_opts()) ->
-    {response({ok, time_range()} | add_range_error()), result()} | no_return().
+    {response({ok, time_range()}), result()} | no_return().
 process_call({add_range, StartTimestamp}, Machine, _HandlerArgs, _HandlerOpts) ->
     State = collapse(Machine),
-    case assert_timestamp(StartTimestamp, created_at(State)) of
-        true ->
-            %% TODO: Check this range aleady exists befor add
-            {ok, AccountID} = lim_accounting:create_account(),
-            TimeRange = #{
-                account_id => AccountID,
-                upper => StartTimestamp,
-                lower => mk_lower_time_range_edge(StartTimestamp, type(State))
-            },
-            {{ok, TimeRange}, #{events => emit_events([{time_range_created, TimeRange}])}};
-        false ->
-            {{inconsistent_timestamp, StartTimestamp}, #{}}
-    end;
-process_call(_Args, _Machine, _HandlerArgs, _HandlerOpts) ->
-    not_implemented(call).
+    %% TODO: Check this range aleady exists befor add
+    {ok, AccountIDFrom} = lim_accounting:create_account(),
+    {ok, AccountIDTo} = lim_accounting:create_account(),
+    TimeRange = #{
+        account_id_from => AccountIDFrom,
+        account_id_to => AccountIDTo,
+        upper => StartTimestamp,
+        lower => mk_lower_time_range_edge(StartTimestamp, type(State))
+    },
+    {{ok, TimeRange}, #{events => emit_events([{time_range_created, TimeRange}])}}.
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) -> no_return().
 process_timeout(_Machine, _HandlerArgs, _HandlerOpts) ->
@@ -265,9 +247,6 @@ not_implemented(What) ->
     erlang:error({not_implemented, What}).
 
 %%
-
-assert_timestamp(StartTimestamp, CreateAt) ->
-    lim_time:from_rfc3339(StartTimestamp) >= lim_time:from_rfc3339(CreateAt).
 
 -spec apply_event(event(), lim_maybe:maybe(limit_range_state())) -> limit_range_state().
 apply_event({created, LimitRange}, undefined) ->

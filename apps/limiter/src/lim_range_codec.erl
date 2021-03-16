@@ -1,7 +1,5 @@
 -module(lim_range_codec).
 
-% -include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
-
 -export([marshal/2]).
 -export([unmarshal/2]).
 

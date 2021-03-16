@@ -23,32 +23,28 @@ handle_function(Fn, Args, WoodyCtx, Opts) ->
     ).
 
 -spec handle_function_(woody:func(), woody:args(), lim_context(), woody:options()) -> {ok, woody:result()}.
-handle_function_('Create', {#limiter_cfg_LimitCreateParams{name = Name}}, LimitContext, _Opts) ->
+handle_function_('Create', {#limiter_cfg_LimitCreateParams{
+    id = ID,
+    name = Name,
+    description = Description
+}}, LimitContext, _Opts) ->
     case mk_limit_config(Name) of
         {ok, Config} ->
-            case lim_config_machine:start(Config, LimitContext) of
-                {ok, Limit} ->
-                    Limit;
-                {error, notfound} ->
-                    woody_error:raise(business, #limiter_LimitNotFound{})
-            end;
-        {error, {inconsistent_request, {name, notfound}}} ->
+            {ok, LimitConfig} = lim_config_machine:start(ID, Config#{description => Description}, LimitContext),
+            {ok, marshal(limit_config, LimitConfig)};
+        {error, {name, notfound}} ->
             woody_error:raise(
                 business,
-                #limiter_cfg_InconsistentRequest{limit_name_not_found = #limiter_cfg_LimitNameNotFound{}}
+                #limiter_cfg_LimitConfigNameNotFound{}
             )
     end;
-handle_function_('Get', {LimitID, Timestamp}, LimitContext0, _Opts) ->
-    scoper:add_meta(#{
-        limit_id => LimitID,
-        timestamp => Timestamp
-    }),
-    {ok, LimitContext1} = lim_context:set_operation_timestamp(Timestamp, LimitContext0),
-    case lim_config_machine:get_limit(LimitID, LimitContext1) of
-        {ok, Limit} ->
-            {ok, Limit};
-        {error, {limit, notfound}} ->
-            woody_error:raise(business, #limiter_LimitNotFound{})
+handle_function_('Get', {LimitID}, LimitContext, _Opts) ->
+    scoper:add_meta(#{limit_config_id => LimitID}),
+    case lim_config_machine:get(LimitID, LimitContext) of
+        {ok, LimitConfig} ->
+            {ok, marshal(limit_config, LimitConfig)};
+        {error, notfound} ->
+            woody_error:raise(business, #limiter_cfg_LimitConfigNotFound{})
     end.
 
 mk_limit_config(<<"GlobalMonthTurnover">>) ->
@@ -60,4 +56,11 @@ mk_limit_config(<<"GlobalMonthTurnover">>) ->
         time_range => month
     }};
 mk_limit_config(_) ->
-    {error, {inconsistent_request, {name, notfound}}}.
+    {error, {name, notfound}}.
+
+marshal(limit_config, Config) ->
+    #limiter_cfg_LimitConfig{
+        id = lim_config_machine:id(Config),
+        description = lim_config_machine:description(Config),
+        created_at = lim_config_machine:created_at(Config)
+    }.

@@ -2,8 +2,9 @@
 
 -include_lib("damsel/include/dmsl_accounter_thrift.hrl").
 -include_lib("damsel/include/dmsl_base_thrift.hrl").
+-include_lib("limiter_proto/include/lim_limiter_thrift.hrl").
 
--export([construct_postings/4]).
+-export([construct_postings/3]).
 -export([reverse_postings/1]).
 -export([assert_partial_posting_amount/2]).
 
@@ -11,6 +12,7 @@
 -type currency() :: binary().
 -type account_id() :: lim_accounting:account_id().
 -type posting() :: lim_accounting:posting().
+-type body() :: lim_limiter_thrift:'LimitBody'().
 
 -type forbidden_operation_amount_error() :: #{
     type := positive | negative,
@@ -21,12 +23,14 @@
 
 -export_type([forbidden_operation_amount_error/0]).
 
--spec construct_postings(account_id(), account_id(), amount(), currency()) -> [posting()].
+-spec construct_postings(account_id(), account_id(), body()) -> [posting()].
 construct_postings(
     AccountFrom,
     AccountTo,
-    Amount,
-    Currency
+    {cash, #limiter_base_Cash{
+        amount = Amount,
+        currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
+    }}
 ) ->
     [
         #accounter_Posting{
@@ -34,6 +38,20 @@ construct_postings(
             to_id = AccountTo,
             amount = Amount,
             currency_sym_code = Currency,
+            description = <<>>
+        }
+    ];
+construct_postings(
+    AccountFrom,
+    AccountTo,
+    {amount, Amount}
+) ->
+    [
+        #accounter_Posting{
+            from_id = AccountFrom,
+            to_id = AccountTo,
+            amount = Amount,
+            currency_sym_code = lim_accounting:get_default_currency(),
             description = <<>>
         }
     ].

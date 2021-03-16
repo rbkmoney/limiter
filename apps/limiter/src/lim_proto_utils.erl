@@ -3,8 +3,6 @@
 -export([serialize/2]).
 -export([deserialize/2]).
 
--spec serialize(thrift_type(), term()) -> binary().
-
 -type thrift_type() ::
     thrift_base_type()
     | thrift_collection_type()
@@ -43,27 +41,27 @@
     Default :: any()
 }).
 
+-spec serialize(thrift_type(), term()) -> binary().
 serialize(Type, Data) ->
-    {ok, Trans} = thrift_membuffer_transport:new(),
-    {ok, Proto} = new_protocol(Trans),
-    case thrift_protocol:write(Proto, {Type, Data}) of
-        {NewProto, ok} ->
-            {_, {ok, Result}} = thrift_protocol:close_transport(NewProto),
-            Result;
-        {_NewProto, {error, Reason}} ->
+    Codec0 = thrift_strict_binary_codec:new(),
+    case thrift_strict_binary_codec:write(Codec0, Type, Data) of
+        {ok, Codec1} ->
+            thrift_strict_binary_codec:close(Codec1);
+        {error, Reason} ->
             erlang:error({thrift, {protocol, Reason}})
     end.
 
 -spec deserialize(thrift_type(), binary()) -> term().
 deserialize(Type, Data) ->
-    {ok, Trans} = thrift_membuffer_transport:new(Data),
-    {ok, Proto} = new_protocol(Trans),
-    case thrift_protocol:read(Proto, Type) of
-        {_NewProto, {ok, Result}} ->
-            Result;
-        {_NewProto, {error, Reason}} ->
+    Codec0 = thrift_strict_binary_codec:new(Data),
+    case thrift_strict_binary_codec:read(Codec0, Type) of
+        {ok, Result, Codec1} ->
+            case thrift_strict_binary_codec:close(Codec1) of
+                <<>> ->
+                    Result;
+                Leftovers ->
+                    erlang:error({thrift, {protocol, {excess_binary_data, Leftovers}}})
+            end;
+        {error, Reason} ->
             erlang:error({thrift, {protocol, Reason}})
     end.
-
-new_protocol(Trans) ->
-    thrift_binary_protocol:new(Trans, [{strict_read, true}, {strict_write, true}]).
