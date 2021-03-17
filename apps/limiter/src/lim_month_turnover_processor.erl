@@ -20,17 +20,22 @@
 -type amount() :: integer().
 
 -type forbidden_operation_amount_error() :: #{
+    body_type := lim_config_machine:body_type(),
     type := positive | negative,
     partial := amount(),
     full := amount(),
-    currency := currency()
+    currency => currency()
 }.
 
 -type get_limit_error() :: {limit | range | account | timestamp, notfound}.
--type hold_error() :: {timestamp, notfound} | lim_accounting:invalid_request_error().
+-type hold_error() ::
+    {timestamp, notfound}
+    | lim_body:validate_error()
+    | lim_accounting:invalid_request_error().
 -type commit_error() ::
-    forbidden_operation_amount_error()
+    {forbidden_operation_amount, forbidden_operation_amount_error()}
     | {plan | timestamp, notfound}
+    | {full | partial, lim_body:validate_error()}
     | lim_accounting:invalid_request_error().
 -type rollback_error() :: {plan, notfound} | lim_accounting:invalid_request_error().
 
@@ -63,9 +68,10 @@ get_limit(LimitID, Config, LimitContext) ->
 
 -spec hold(lim_change(), config(), lim_context()) ->
     ok | {error, hold_error()}.
-hold(#limiter_LimitChange{id = LimitID, body = Body}, _Config, LimitContext) ->
+hold(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftBody}, Config, LimitContext) ->
     do(fun() ->
         Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
+        Body = unwrap(lim_body:extract_and_validate_body(ThriftBody, Config)),
         CreateParams = #{
             id => construct_range_id(LimitID),
             type => month,
@@ -76,7 +82,7 @@ hold(#limiter_LimitChange{id = LimitID, body = Body}, _Config, LimitContext) ->
         {ok, #{account_id_from := AccountIDFrom, account_id_to := AccountIDTo}} =
             lim_range_machine:ensure_range_exist_in_state(Timestamp, LimitRangeState, LimitContext),
         Postings = lim_p_transfer:construct_postings(AccountIDFrom, AccountIDTo, Body),
-        lim_accounting:hold(construct_plan_id(LimitID), {1, Postings}, LimitContext)
+        lim_accounting:hold(construct_plan_id(LimitChange), {1, Postings}, LimitContext)
     end).
 
 -spec commit(lim_change(), config(), lim_context()) ->
@@ -103,63 +109,67 @@ rollback(LimitChange, _Config, LimitContext) ->
     end).
 
 construct_plan_id(#limiter_LimitChange{change_id = ChangeID}) ->
-    ChangeID;
-construct_plan_id(ChangeID) ->
     ChangeID.
 
 construct_range_id(LimitID) ->
     <<"Global/Month/Turnover/", LimitID/binary>>.
 
-partial_commit(#limiter_LimitChange{id = LimitID, body = FullBody}, _Config, LimitContext) ->
+partial_commit(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftFullBody}, Config, LimitContext) ->
     do(fun() ->
-        PlanID = construct_plan_id(LimitID),
         Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
-        {ok, PartialBody} = lim_context:partial_body(LimitContext),
+        {ok, ThriftPartialBody} = lim_context:partial_body(LimitContext),
+        PartialBody = unwrap(partial, lim_body:extract_and_validate_body(ThriftPartialBody, Config)),
+        FullBody = unwrap(full, lim_body:extract_and_validate_body(ThriftFullBody, Config)),
+        ok = unwrap(assert_partial_body(PartialBody, FullBody)),
+
         {ok, LimitRangeState} = lim_range_machine:get(construct_range_id(LimitID), LimitContext),
         {ok, #{account_id_from := AccountIDFrom, account_id_to := AccountIDTo}} =
             lim_range_machine:get_range(Timestamp, LimitRangeState),
+
         PartialPostings = lim_p_transfer:construct_postings(AccountIDFrom, AccountIDTo, PartialBody),
         FullPostings = lim_p_transfer:construct_postings(AccountIDFrom, AccountIDTo, FullBody),
-        ok = unwrap(assert_partial_posting_amount(PartialPostings, FullPostings)),
         NewBatchList = [{2, lim_p_transfer:reverse_postings(FullPostings)} | [{3, PartialPostings}]],
+
+        PlanID = construct_plan_id(LimitChange),
         unwrap(lim_accounting:plan(PlanID, NewBatchList, LimitContext)),
         unwrap(lim_accounting:commit(PlanID, [{1, FullPostings} | NewBatchList], LimitContext))
     end).
 
-assert_partial_posting_amount(
-    [#accounter_Posting{amount = Partial, currency_sym_code = Currency} | _Rest],
-    [#accounter_Posting{amount = Full, currency_sym_code = Currency} | _Rest]
-) ->
-    compare_amount(Partial, Full, Currency);
-assert_partial_posting_amount(
-    [#accounter_Posting{amount = Partial, currency_sym_code = PartialCurrency} | _Rest],
-    [#accounter_Posting{amount = Full, currency_sym_code = FullCurrency} | _Rest]
-) ->
+assert_partial_body({cash, {Partial, Currency}}, {cash, {Full, Currency}}) ->
+    compare_amount(cash, Partial, Full, Currency);
+assert_partial_body({amount, Partial}, {amount, Full}) ->
+    compare_amount(amount, Partial, Full);
+assert_partial_body({cash, {Partial, PartialCurrency}}, {cash, {Full, FullCurrency}}) ->
     erlang:error({invalid_partial_cash, {Partial, PartialCurrency}, {Full, FullCurrency}}).
 
-compare_amount(Partial, Full, Currency) when Full > 0 ->
+compare_amount(BodyType, Partial, Full) ->
+    compare_amount(BodyType, Partial, Full, undefined).
+
+compare_amount(BodyType, Partial, Full, Currency) when Full > 0 ->
     case Partial =< Full of
         true ->
             ok;
         false ->
             {error,
-                {forbidden_operation_amount, #{
+                {forbidden_operation_amount, genlib_map:compact(#{
+                    body_type => BodyType,
                     type => positive,
                     partial => Partial,
                     full => Full,
                     currency => Currency
-                }}}
+                })}}
     end;
-compare_amount(Partial, Full, Currency) when Full < 0 ->
+compare_amount(BodyType, Partial, Full, Currency) when Full < 0 ->
     case Partial >= Full of
         true ->
             ok;
         false ->
             {error,
-                {forbidden_operation_amount, #{
+                {forbidden_operation_amount, genlib_map:compact(#{
+                    body_type => BodyType,
                     type => negative,
                     partial => Partial,
                     full => Full,
                     currency => Currency
-                }}}
+                })}}
     end.

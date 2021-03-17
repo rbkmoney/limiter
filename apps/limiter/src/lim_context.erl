@@ -6,17 +6,22 @@
 -export([woody_context/1]).
 -export([operation_timestamp/1]).
 -export([partial_body/1]).
+-export([clock/1]).
+
 -export([set_context/2]).
+-export([set_clock/2]).
 
 -type woody_context() :: woody_context:ctx().
 -type timestamp() :: binary().
 -type context() :: lim_limiter_thrift:'LimitContext'().
 -type body() :: lim_limiter_thrift:'LimitBody'().
+-type clock() :: lim_limiter_thrift:'Clock'().
 
 -type t() :: #{
     woody_context := woody_context(),
     operation_timestamp => timestamp(),
-    context => context()
+    context => context(),
+    clock => clock()
 }.
 
 -export_type([t/0]).
@@ -45,6 +50,16 @@ partial_body(#{context := #limiter_LimitContext{partial_body = PartialBody}}) wh
 partial_body(_) ->
     {error, notfound}.
 
--spec set_context(context(), t()) -> {ok, t()}.
+-spec clock(t()) -> {ok, clock()} | {error, notfound}.
+clock(#{clock := Clock}) ->
+    {ok, Clock};
+clock(_) ->
+    {error, notfound}.
+
+-spec set_context(context(), t()) -> t().
 set_context(Context, LimContext) ->
-    {ok, LimContext#{context => Context}}.
+    LimContext#{context => Context}.
+
+-spec set_clock(clock(), t()) -> t().
+set_clock(Clock, LimContext) ->
+    LimContext#{clock => Clock}.

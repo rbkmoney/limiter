@@ -18,7 +18,7 @@
     Amount,
     Currency
 ),
-    #'Cash'{amount = Amount, currency = #'CurrencyRef'{symbolic_code = Currency}}
+    #limiter_base_Cash{amount = Amount, currency = #limiter_base_CurrencyRef{symbolic_code = Currency}}
 ).
 
 %%
@@ -32,43 +32,140 @@ handle_function(Fn, Args, WoodyCtx, Opts) ->
     ).
 
 -spec handle_function_(woody:func(), woody:args(), lim_context(), woody:options()) -> {ok, woody:result()}.
-handle_function_('Get', {LimitID, _Clock, Context}, LimitContext0, _Opts) ->
+handle_function_('Get', {LimitID, Clock, Context}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_id => LimitID}),
-    {ok, LimitContext1} = lim_context:set_context(Context, LimitContext0),
-    case lim_config_machine:get_limit(LimitID, LimitContext1) of
+    case lim_config_machine:get_limit(
+        LimitID,
+        lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+    ) of
         {ok, Limit} ->
             {ok, Limit};
-        {error, {limit, notfound}} ->
-            woody_error:raise(business, #limiter_LimitNotFound{})
+        {error, Error} ->
+            handle_get_error(Error)
     end;
-handle_function_('Hold', {LimitChange = ?LIMIT_CHANGE(LimitID), Context}, LimitContext0, _Opts) ->
+handle_function_('Hold', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_id => LimitID}),
-    {ok, LimitContext1} = lim_context:set_context(Context, LimitContext0),
-    case lim_config_machine:hold(LimitChange, LimitContext1) of
+    case lim_config_machine:hold(
+        LimitChange,
+        im_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+    ) of
         ok ->
-            {ok, ok};
-        {error, {invalid_request, Errors}} ->
-            woody_error:raise(business, #limiter_base_InvalidRequest{errors = Errors})
+            {ok, {vector, #limiter_VectorClock{state = <<>>}}};
+        {error, Error} ->
+            handle_hold_error(Error)
     end;
-handle_function_('Commit', {LimitChange = ?LIMIT_CHANGE(LimitID), Context}, LimitContext0, _Opts) ->
+handle_function_('Commit', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_id => LimitID}),
-    {ok, LimitContext1} = lim_context:set_context(Context, LimitContext0),
-    case lim_config_machine:commit(LimitChange, LimitContext1) of
+    case lim_config_machine:commit(
+        LimitChange,
+        lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+    ) of
         ok ->
-            {ok, ok};
-        {error, {plan, notfound}} ->
-            woody_error:raise(business, #limiter_LimitChangeNotFound{});
-        {error, {invalid_request, Errors}} ->
-            woody_error:raise(business, #limiter_base_InvalidRequest{errors = Errors})
+            {ok, {vector, #limiter_VectorClock{state = <<>>}}};
+        {error, Error} ->
+            handle_commit_error(Error)
     end;
-handle_function_('Rollback', {LimitChange = ?LIMIT_CHANGE(LimitID), Context}, LimitContext0, _Opts) ->
+handle_function_('Rollback', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_id => LimitID}),
-    {ok, LimitContext1} = lim_context:set_context(Context, LimitContext0),
-    case lim_config_machine:rollback(LimitChange, LimitContext1) of
+    case lim_config_machine:rollback(
+        LimitChange,
+        lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+    ) of
         ok ->
-            {ok, ok};
-        {error, {plan, notfound}} ->
-            woody_error:raise(business, #limiter_LimitChangeNotFound{});
-        {error, {invalid_request, Errors}} ->
-            woody_error:raise(business, #limiter_base_InvalidRequest{errors = Errors})
+            {ok, {vector, #limiter_VectorClock{state = <<>>}}};
+        {error, Error} ->
+            handle_rollback_error(Error)
+    end.
+
+-spec handle_get_error(_) -> no_return().
+handle_get_error({_, {limit, notfound}}) ->
+    woody_error:raise(business, #limiter_LimitNotFound{});
+handle_get_error({_, {range, notfound}}) ->
+    woody_error:raise(business, #limiter_LimitNotFound{});
+handle_get_error(Error) ->
+    handle_default_error(Error).
+
+-spec handle_hold_error(_) -> no_return().
+handle_hold_error({_, {invalid_request, Errors}}) ->
+    woody_error:raise(business, #limiter_base_InvalidRequest{errors = Errors});
+handle_hold_error(Error) ->
+    handle_default_error(Error).
+
+-spec handle_commit_error(_) -> no_return().
+handle_commit_error({_, {forbidden_operation_amount, Error}}) ->
+    handle_forbidden_operation_amount_error(Error);
+handle_commit_error({_, {plan, notfound}}) ->
+    woody_error:raise(business, #limiter_LimitChangeNotFound{});
+handle_commit_error({_, {invalid_request, Errors}}) ->
+    woody_error:raise(business, #limiter_base_InvalidRequest{errors = Errors});
+handle_commit_error(Error) ->
+    handle_default_error(Error).
+
+-spec handle_rollback_error(_) -> no_return().
+handle_rollback_error({_, {plan, notfound}}) ->
+    woody_error:raise(business, #limiter_LimitChangeNotFound{});
+handle_rollback_error({_, {invalid_request, Errors}}) ->
+    woody_error:raise(business, #limiter_base_InvalidRequest{errors = Errors});
+handle_rollback_error(Error) ->
+    handle_default_error(Error).
+
+-spec handle_default_error(_) -> no_return().
+handle_default_error({config, notfound}) ->
+    woody_error:raise(business, #limiter_LimitNotFound{});
+handle_default_error(Error) ->
+    handle_unknown_error(Error).
+
+-spec handle_unknown_error(_) -> no_return().
+handle_unknown_error(Error) ->
+    erlang:error({unknown_error, Error}).
+
+-spec handle_forbidden_operation_amount_error(_) -> no_return().
+handle_forbidden_operation_amount_error(Error = #{body_type := cash}) ->
+    #{
+        type := Type,
+        partial := Partial,
+        full := Full,
+        currency := Currency
+    } = Error,
+    case Type of
+        positive ->
+            woody_error:raise(business, #limiter_ForbiddenOperationAmount{
+                amount = {cash, ?CASH(Partial, Currency)},
+                allowed_range = {cash, #limiter_base_CashRange{
+                    upper = {inclusive, ?CASH(Full, Currency)},
+                    lower = {inclusive, ?CASH(0, Currency)}
+                }}
+            });
+        negative ->
+            woody_error:raise(business, #limiter_ForbiddenOperationAmount{
+                amount = {cash, ?CASH(Partial, Currency)},
+                allowed_range = {cash, #limiter_base_CashRange{
+                    upper = {inclusive, ?CASH(0, Currency)},
+                    lower = {inclusive, ?CASH(Full, Currency)}
+                }}
+            })
+    end;
+handle_forbidden_operation_amount_error(Error = #{body_type := amount}) ->
+    #{
+        type := Type,
+        partial := Partial,
+        full := Full
+    } = Error,
+    case Type of
+        positive ->
+            woody_error:raise(business, #limiter_ForbiddenOperationAmount{
+                amount = {amount, Partial},
+                allowed_range = {amount, #limiter_base_AmountRange{
+                    upper = {inclusive, Full},
+                    lower = {inclusive, 0}
+                }}
+            });
+        negative ->
+            woody_error:raise(business, #limiter_ForbiddenOperationAmount{
+                amount = {amount, Partial},
+                allowed_range = {amount, #limiter_base_AmountRange{
+                    upper = {inclusive, 0},
+                    lower = {inclusive, Full}
+                }}
+            })
     end.

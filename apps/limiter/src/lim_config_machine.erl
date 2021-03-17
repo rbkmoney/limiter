@@ -8,6 +8,7 @@
 -export([created_at/1]).
 -export([id/1]).
 -export([description/1]).
+-export([body_type/1]).
 
 %% API
 
@@ -21,25 +22,28 @@
 
 -type woody_context() :: woody_context:ctx().
 -type lim_context() :: lim_context:t().
--type processor_type() :: binary().
+-type processor_type() :: lim_router:processor_type().
+-type processor() :: lim_router:processor().
 -type description() :: binary().
+
+-type body_type() :: cash | amount.
 
 -type config() :: #{
     id := lim_id(),
     processor_type := processor_type(),
     created_at := lim_time:timestamp_ms(),
+    body_type := body_type(),
     type => turnover,
     scope => global,
-    body_type => cash,
     time_range => month,
     description => description()
 }.
 
 -type create_params() :: #{
     processor_type := processor_type(),
+    body_type := body_type(),
     type => turnover,
     scope => global,
-    body_type => cash,
     time_range => month,
     description => description()
 }.
@@ -50,6 +54,7 @@
 -type timestamp() :: lim_base_thrift:'Timestamp'().
 
 -export_type([config/0]).
+-export_type([body_type/0]).
 -export_type([create_params/0]).
 -export_type([lim_id/0]).
 -export_type([lim_change/0]).
@@ -129,6 +134,10 @@ description(#{description := ID}) ->
 description(_) ->
     undefined.
 
+-spec body_type(config()) -> body_type().
+body_type(#{body_type := BodyType}) ->
+    BodyType.
+
 %%
 
 -spec start(lim_id(), create_params(), lim_context()) -> {ok, config()}.
@@ -150,39 +159,39 @@ get(ID, LimitContext) ->
     end).
 
 -spec get_limit(lim_id(), lim_context()) ->
-    {ok, limit()} | {error, config_error() | get_limit_error()}.
+    {ok, limit()} | {error, config_error() | {processor(), get_limit_error()}}.
 get_limit(ID, LimitContext) ->
     do(fun() ->
         Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
         Handler = unwrap(handler, lim_router:get_handler(Processor)),
-        Handler:get_limit(ID, Config, LimitContext)
+        unwrap(Handler, Handler:get_limit(ID, Config, LimitContext))
     end).
 
 -spec hold(lim_change(), lim_context()) ->
-    ok | {error, config_error() | hold_error()}.
+    ok | {error, config_error() | {processor(), hold_error()}}.
 hold(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
         Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
         Handler = unwrap(handler, lim_router:get_handler(Processor)),
-        Handler:hold(LimitChange, Config, LimitContext)
+        unwrap(Handler, Handler:hold(LimitChange, Config, LimitContext))
     end).
 
 -spec commit(lim_change(), lim_context()) ->
-    ok | {error, config_error() | commit_error()}.
+    ok | {error, config_error() | {processor(), commit_error()}}.
 commit(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
         Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
         Handler = unwrap(handler, lim_router:get_handler(Processor)),
-        Handler:commit(LimitChange, Config, LimitContext)
+        unwrap(Handler, Handler:commit(LimitChange, Config, LimitContext))
     end).
 
 -spec rollback(lim_change(), lim_context()) ->
-    ok | {error, config_error() | rollback_error()}.
+    ok | {error, config_error() | {processor(), rollback_error()}}.
 rollback(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
         Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
         Handler = unwrap(handler, lim_router:get_handler(Processor)),
-        Handler:rollback(LimitChange, Config, LimitContext)
+        unwrap(Handler, Handler:rollback(LimitChange, Config, LimitContext))
     end).
 
 %%% Machinery callbacks
