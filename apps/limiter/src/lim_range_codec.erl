@@ -2,6 +2,7 @@
 
 -export([marshal/2]).
 -export([unmarshal/2]).
+-export([parse_timestamp/1]).
 
 %% Types
 

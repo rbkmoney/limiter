@@ -26,11 +26,16 @@ handle_function(Fn, Args, WoodyCtx, Opts) ->
 handle_function_('Create', {#limiter_cfg_LimitCreateParams{
     id = ID,
     name = Name,
-    description = Description
+    description = Description,
+    started_at = StartedAt
 }}, LimitContext, _Opts) ->
     case mk_limit_config(Name) of
         {ok, Config} ->
-            {ok, LimitConfig} = lim_config_machine:start(ID, Config#{description => Description}, LimitContext),
+            {ok, LimitConfig} = lim_config_machine:start(
+                ID,
+                Config#{description => Description, started_at => StartedAt},
+                LimitContext
+            ),
             {ok, marshal(limit_config, LimitConfig)};
         {error, {name, notfound}} ->
             woody_error:raise(
@@ -53,7 +58,8 @@ mk_limit_config(<<"GlobalMonthTurnover">>) ->
         type => turnover,
         scope => global,
         body_type => cash,
-        time_range => month
+        shard_size => 12,
+        time_range_type => {calendar, month}
     }};
 mk_limit_config(_) ->
     {error, {name, notfound}}.
@@ -62,5 +68,7 @@ marshal(limit_config, Config) ->
     #limiter_cfg_LimitConfig{
         id = lim_config_machine:id(Config),
         description = lim_config_machine:description(Config),
-        created_at = lim_config_machine:created_at(Config)
+        created_at = lim_config_machine:created_at(Config),
+        started_at = lim_config_machine:started_at(Config),
+        shard_size = lim_config_machine:shard_size(Config)
     }.

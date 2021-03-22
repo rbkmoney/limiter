@@ -51,7 +51,7 @@
 get_limit(LimitID, Config, LimitContext) ->
     do(fun() ->
         Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
-        LimitRangeID = construct_range_id(LimitID),
+        LimitRangeID = construct_range_id(LimitID, Timestamp, Config),
         LimitRange = unwrap(limit, lim_range_machine:get(LimitRangeID, LimitContext)),
         #{own_amount := Amount, currency := Currency} =
             unwrap(lim_range_machine:get_range_balance(Timestamp, LimitRange, LimitContext)),
@@ -73,14 +73,14 @@ hold(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftBody}, Config
         Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
         Body = unwrap(lim_body:extract_and_validate_body(ThriftBody, Config)),
         CreateParams = #{
-            id => construct_range_id(LimitID),
-            type => month,
+            id => construct_range_id(LimitID, Timestamp, Config),
+            type => lim_config_machine:time_range_type(Config),
             created_at => Timestamp
         },
-        %% TODO: get body type from config and validate body and pass unmarshaled body to p transfer
         {ok, LimitRangeState} = lim_range_machine:ensure_exist(CreateParams, LimitContext),
+        TimeRange = lim_config_machine:calculate_time_range(Timestamp, Config),
         {ok, #{account_id_from := AccountIDFrom, account_id_to := AccountIDTo}} =
-            lim_range_machine:ensure_range_exist_in_state(Timestamp, LimitRangeState, LimitContext),
+            lim_range_machine:ensure_range_exist_in_state(TimeRange, LimitRangeState, LimitContext),
         Postings = lim_p_transfer:construct_postings(AccountIDFrom, AccountIDTo, Body),
         lim_accounting:hold(construct_plan_id(LimitChange), {1, Postings}, LimitContext)
     end).
@@ -111,8 +111,9 @@ rollback(LimitChange, _Config, LimitContext) ->
 construct_plan_id(#limiter_LimitChange{change_id = ChangeID}) ->
     ChangeID.
 
-construct_range_id(LimitID) ->
-    <<"Global/Month/Turnover/", LimitID/binary>>.
+construct_range_id(LimitID, Timestamp, Config) ->
+    ShardID = lim_config_machine:calculate_shard_id(Timestamp, Config),
+    <<LimitID/binary, "/", ShardID/binary>>.
 
 partial_commit(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftFullBody}, Config, LimitContext) ->
     do(fun() ->
@@ -122,7 +123,7 @@ partial_commit(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftFul
         FullBody = unwrap(full, lim_body:extract_and_validate_body(ThriftFullBody, Config)),
         ok = unwrap(assert_partial_body(PartialBody, FullBody)),
 
-        {ok, LimitRangeState} = lim_range_machine:get(construct_range_id(LimitID), LimitContext),
+        {ok, LimitRangeState} = lim_range_machine:get(construct_range_id(LimitID, Timestamp, Config), LimitContext),
         {ok, #{account_id_from := AccountIDFrom, account_id_to := AccountIDTo}} =
             lim_range_machine:get_range(Timestamp, LimitRangeState),
 

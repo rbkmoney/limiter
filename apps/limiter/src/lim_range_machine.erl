@@ -38,12 +38,14 @@
 -type lim_context() :: lim_context:t().
 -type timestamp() :: lim_config_machine:timestamp().
 -type lim_id() :: lim_config_machine:lim_id().
+-type time_range_type() :: lim_config_machine:time_range_type().
+-type time_range() :: lim_config_machine:time_range().
 
 -type limit_range_state() :: #{
     id := lim_id(),
     type := time_range_type(),
     created_at := timestamp(),
-    ranges => [time_range()]
+    ranges => [time_range_ext()]
 }.
 
 -type timestamped_event(T) ::
@@ -51,7 +53,7 @@
 
 -type event() ::
     {created, limit_range()}
-    | {time_range_created, time_range()}.
+    | {time_range_created, time_range_ext()}.
 
 -type limit_range() :: #{
     id := lim_id(),
@@ -59,14 +61,12 @@
     created_at := timestamp()
 }.
 
--type time_range() :: #{
+-type time_range_ext() :: #{
     account_id_from := lim_accounting:account_id(),
     account_id_to := lim_accounting:account_id(),
     upper := timestamp(),
     lower := timestamp()
 }.
-
--type time_range_type() :: month | infinity.
 
 -type create_params() :: #{
     id := lim_id(),
@@ -75,7 +75,7 @@
 }.
 
 -type range_call() ::
-    {add_range, timestamp()}.
+    {add_range, time_range()}.
 
 -export_type([timestamped_event/1]).
 -export_type([event/0]).
@@ -98,7 +98,7 @@ created_at(State) ->
 type(State) ->
     maps:get(type, State).
 
--spec ranges(limit_range_state()) -> [time_range()].
+-spec ranges(limit_range_state()) -> [time_range_ext()].
 ranges(#{ranges := Ranges}) ->
     Ranges;
 ranges(_State) ->
@@ -129,7 +129,7 @@ ensure_exist(Params = #{id := ID}, LimitContext) ->
             end
     end.
 
--spec get_range(timestamp(), limit_range_state()) -> {ok, time_range()} | {error, notfound}.
+-spec get_range(timestamp(), limit_range_state()) -> {ok, time_range_ext()} | {error, notfound}.
 get_range(Timestamp, State) ->
     find_time_range(Timestamp, ranges(State)).
 
@@ -142,24 +142,24 @@ get_range_balance(Timestamp, State, LimitContext) ->
         unwrap(account, lim_accounting:get_balance(AccountID, LimitContext))
     end).
 
--spec ensure_range_exist(lim_id(), timestamp(), lim_context()) ->
-    {ok, time_range()}
+-spec ensure_range_exist(lim_id(), time_range(), lim_context()) ->
+    {ok, time_range_ext()}
     | {error, {limit_range, notfound}}.
-ensure_range_exist(ID, StartTimestamp, LimitContext) ->
+ensure_range_exist(ID, TimeRange, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
         State = unwrap(limit_range, get_state(ID, WoodyCtx)),
-        unwrap(ensure_range_exist_in_state(StartTimestamp, State, LimitContext))
+        unwrap(ensure_range_exist_in_state(TimeRange, State, LimitContext))
     end).
 
--spec ensure_range_exist_in_state(timestamp(), limit_range_state(), lim_context()) ->
-    {ok, time_range()}.
-ensure_range_exist_in_state(StartTimestamp, State, LimitContext) ->
+-spec ensure_range_exist_in_state(time_range(), limit_range_state(), lim_context()) ->
+    {ok, time_range_ext()}.
+ensure_range_exist_in_state(TimeRange, State, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
-        case find_time_range(StartTimestamp, ranges(State)) of
+        case find_time_range(TimeRange, ranges(State)) of
             {error, notfound} ->
-                unwrap(call(id(State), {add_range, StartTimestamp}, WoodyCtx));
+                unwrap(call(id(State), {add_range, TimeRange}, WoodyCtx));
             {ok, Range} ->
                 {ok, Range}
         end
@@ -174,19 +174,21 @@ init(Events, _Machine, _HandlerArgs, _HandlerOpts) ->
     }.
 
 -spec process_call(args(range_call()), machine(), handler_args(), handler_opts()) ->
-    {response({ok, time_range()}), result()} | no_return().
-process_call({add_range, StartTimestamp}, Machine, _HandlerArgs, _HandlerOpts) ->
+    {response({ok, time_range_ext()}), result()} | no_return().
+process_call({add_range, TimeRange0}, Machine, _HandlerArgs, _HandlerOpts) ->
     State = collapse(Machine),
-    %% TODO: Check this range aleady exists befor add
-    {ok, AccountIDFrom} = lim_accounting:create_account(),
-    {ok, AccountIDTo} = lim_accounting:create_account(),
-    TimeRange = #{
-        account_id_from => AccountIDFrom,
-        account_id_to => AccountIDTo,
-        upper => StartTimestamp,
-        lower => mk_lower_time_range_edge(StartTimestamp, type(State))
-    },
-    {{ok, TimeRange}, #{events => emit_events([{time_range_created, TimeRange}])}}.
+    case find_time_range(TimeRange0, ranges(State)) of
+        {error, notfound} ->
+            {ok, AccountIDFrom} = lim_accounting:create_account(),
+            {ok, AccountIDTo} = lim_accounting:create_account(),
+            TimeRange1 = TimeRange0#{
+                account_id_from => AccountIDFrom,
+                account_id_to => AccountIDTo
+            },
+            {{ok, TimeRange1}, #{events => emit_events([{time_range_created, TimeRange1}])}};
+        {ok, Range} ->
+            {{ok, Range}, #{}}
+    end.
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) -> no_return().
 process_timeout(_Machine, _HandlerArgs, _HandlerOpts) ->
@@ -198,17 +200,12 @@ process_repair(_Args, _Machine, _HandlerArgs, _HandlerOpts) ->
 
 %%% Internal functions
 
-find_time_range(_Timestamp, []) ->
+find_time_range(_TimeRange, []) ->
     {error, notfound};
-find_time_range(_Timestamp, _Ranges = [Head | _Rest]) ->
-    %% TODO: some logic here)
-    % (lim_time:from_rfc3339(Timestamp) >= lim_time:from_rfc3339(Lower)) and
-    %     (lim_time:from_rfc3339(Timestamp) < lim_time:from_rfc3339(Upper))
-    {ok, Head}.
-
-mk_lower_time_range_edge(StartTimestamp, _TimeRangeType) ->
-    %% TODO: some logic here)
-    StartTimestamp.
+find_time_range(#{lower := Lower}, [Head = #{lower := Lower} | _Rest]) ->
+    {ok, Head};
+find_time_range(TimeRange, [_Head | Rest]) ->
+    find_time_range(TimeRange, Rest).
 
 %%
 
