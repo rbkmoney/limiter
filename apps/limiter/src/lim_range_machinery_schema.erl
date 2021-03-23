@@ -38,8 +38,8 @@ get_version(aux_state) ->
     undefined.
 
 -spec marshal(type(), value(data()), context()) -> {machinery_msgpack:t(), context()}.
-marshal({event, Format}, TimestampedChange, Context) ->
-    marshal_event(Format, TimestampedChange, Context);
+marshal({event, FormatVersion}, TimestampedChange, Context) ->
+    marshal_event(FormatVersion, TimestampedChange, Context);
 marshal(T, V, C) when
     T =:= {args, init} orelse
         T =:= {args, call} orelse
@@ -70,12 +70,12 @@ unmarshal(T, V, C) when
 -spec marshal_event(machinery_mg_schema:version(), event(), context()) -> {machinery_msgpack:t(), context()}.
 marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = lim_range_codec:marshal(timestamped_change, TimestampedChange),
-    Type = {struct, struct, {lim_limiter_thrift, 'TimestampedChange'}},
+    Type = {struct, struct, {lim_limiter_range_thrift, 'TimestampedChange'}},
     {{bin, lim_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
 -spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) -> {event(), context()}.
 unmarshal_event(1, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
-    Type = {struct, struct, {lim_limiter_thrift, 'TimestampedChange'}},
+    Type = {struct, struct, {lim_limiter_range_thrift, 'TimestampedChange'}},
     ThriftChange = lim_proto_utils:deserialize(Type, EncodedThriftChange),
     {lim_range_codec:unmarshal(timestamped_change, ThriftChange), Context}.

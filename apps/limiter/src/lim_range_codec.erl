@@ -1,5 +1,7 @@
 -module(lim_range_codec).
 
+-include_lib("limiter_proto/include/lim_limiter_range_thrift.hrl").
+
 -export([marshal/2]).
 -export([unmarshal/2]).
 -export([parse_timestamp/1]).
@@ -17,16 +19,49 @@
 %% API
 
 -spec marshal(type_name(), decoded_value()) -> encoded_value().
-marshal(timestamped_change, {ev, _Timestamp, _Change}) ->
-    % #src_TimestampedChange{
-    %     change = marshal(change, Change),
-    %     occured_at = marshal(timestamp, Timestamp)
-    % };
-    {};
-marshal(change, {created, _Range}) ->
-    {created, marshal(range, _Range)};
-marshal(range, _Range = #{}) ->
-    {};
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #limiter_range_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = marshal(timestamp, Timestamp)
+    };
+marshal(change, {created, Range}) ->
+    {created, #limiter_range_CreatedChange{limit_range = marshal(range, Range)}};
+marshal(change, {time_range_created, TimeRange}) ->
+    {time_range_created, #limiter_range_TimeRangeCreatedChange{time_range = marshal(time_range, TimeRange)}};
+marshal(range, #{
+    id := ID,
+    type := Type,
+    created_at := CreatedAt
+}) ->
+    #limiter_range_LimitRange{
+        id = ID,
+        type = marshal(time_range_type, Type),
+        created_at = marshal(timestamp, CreatedAt)
+    };
+marshal(time_range, #{
+    upper := Upper,
+    lower := Lower,
+    account_id_from := AccountIDFrom,
+    account_id_to := AccountIDTo
+}) ->
+    #time_range_TimeRange{
+        upper = marshal(timestamp, Upper),
+        lower = marshal(timestamp, Lower),
+        account_id_from = AccountIDFrom,
+        account_id_to = AccountIDTo
+    };
+marshal(time_range_type, {calendar, SubType}) ->
+    {calendar, marshal(time_range_sub_type, SubType)};
+marshal(time_range_type, {interval, Interval}) ->
+    {interval, #time_range_TimeRangeTypeInterval{amount = Interval}};
+marshal(time_range_sub_type, year) ->
+    {year, #time_range_TimeRangeTypeCalendarYear{}};
+marshal(time_range_sub_type, month) ->
+    {month, #time_range_TimeRangeTypeCalendarMonth{}};
+marshal(time_range_sub_type, week) ->
+    {week, #time_range_TimeRangeTypeCalendarWeek{}};
+marshal(time_range_sub_type, day) ->
+    {day, #time_range_TimeRangeTypeCalendarDay{}};
 marshal(timestamp, {DateTime, USec}) ->
     DateTimeinSeconds = genlib_time:daytime_to_unixtime(DateTime),
     {TimeinUnit, Unit} =
@@ -40,15 +75,48 @@ marshal(timestamp, {DateTime, USec}) ->
     genlib_rfc3339:format_relaxed(TimeinUnit, Unit).
 
 -spec unmarshal(type_name(), encoded_value()) -> decoded_value().
-unmarshal(timestamped_change, _TimestampedChange) ->
-%     Timestamp = unmarshal(timestamp, TimestampedChange#src_TimestampedChange.occured_at),
-%     Change = unmarshal(change, TimestampedChange#src_TimestampedChange.change),
-%     {ev, Timestamp, Change};
-    {};
-unmarshal(change, {created, _Range}) ->
-    {created, unmarshal(range, _Range)};
-unmarshal(range, {}) ->
-    genlib_map:compact(#{});
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = unmarshal(timestamp, TimestampedChange#limiter_range_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#limiter_range_TimestampedChange.change),
+    {ev, Timestamp, Change};
+unmarshal(change, {created, #limiter_range_CreatedChange{limit_range = Range}}) ->
+    {created, unmarshal(range, Range)};
+unmarshal(change, {time_range_created, #limiter_range_TimeRangeCreatedChange{time_range = Range}}) ->
+    {time_range_created, unmarshal(time_range, Range)};
+unmarshal(range, #limiter_range_LimitRange{
+    id = ID,
+    type = Type,
+    created_at = CreatedAt
+}) ->
+    #{
+        id => ID,
+        type => unmarshal(time_range_type, Type),
+        created_at => unmarshal(timestamp, CreatedAt)
+    };
+unmarshal(time_range, #time_range_TimeRange{
+    upper = Upper,
+    lower = Lower,
+    account_id_from = AccountIDFrom,
+    account_id_to = AccountIDTo
+}) ->
+    #{
+        upper => unmarshal(timestamp, Upper),
+        lower => unmarshal(timestamp, Lower),
+        account_id_from => AccountIDFrom,
+        account_id_to => AccountIDTo
+    };
+unmarshal(time_range_type, {calendar, SubType}) ->
+    {calendar, unmarshal(time_range_sub_type, SubType)};
+unmarshal(time_range_type, {interval, #time_range_TimeRangeTypeInterval{amount = Interval}}) ->
+    {interval, Interval};
+unmarshal(time_range_sub_type, {year, _}) ->
+    year;
+unmarshal(time_range_sub_type, {month, _}) ->
+    month;
+unmarshal(time_range_sub_type, {week, _}) ->
+    week;
+unmarshal(time_range_sub_type, {day, _}) ->
+    day;
 unmarshal(timestamp, Timestamp) when is_binary(Timestamp) ->
     parse_timestamp(Timestamp).
 

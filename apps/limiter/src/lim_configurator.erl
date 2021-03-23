@@ -23,12 +23,17 @@ handle_function(Fn, Args, WoodyCtx, Opts) ->
     ).
 
 -spec handle_function_(woody:func(), woody:args(), lim_context(), woody:options()) -> {ok, woody:result()}.
-handle_function_('Create', {#limiter_cfg_LimitCreateParams{
-    id = ID,
-    name = Name,
-    description = Description,
-    started_at = StartedAt
-}}, LimitContext, _Opts) ->
+handle_function_(
+    'Create',
+    {#limiter_cfg_LimitCreateParams{
+        id = ID,
+        name = Name,
+        description = Description,
+        started_at = StartedAt
+    }},
+    LimitContext,
+    _Opts
+) ->
     case mk_limit_config(Name) of
         {ok, Config} ->
             {ok, LimitConfig} = lim_config_machine:start(
@@ -52,6 +57,42 @@ handle_function_('Get', {LimitID}, LimitContext, _Opts) ->
             woody_error:raise(business, #limiter_cfg_LimitConfigNotFound{})
     end.
 
+mk_limit_config(<<"IdentityMonthTurnover">>) ->
+    {ok, #{
+        processor_type => <<"TurnoverProcessor">>,
+        type => turnover,
+        scope => {scope, identity},
+        body_type => cash,
+        shard_size => 12,
+        time_range_type => {calendar, month}
+    }};
+mk_limit_config(<<"WalletMonthTurnover">>) ->
+    {ok, #{
+        processor_type => <<"TurnoverProcessor">>,
+        type => turnover,
+        scope => {scope, wallet},
+        body_type => cash,
+        shard_size => 12,
+        time_range_type => {calendar, month}
+    }};
+mk_limit_config(<<"ShopMonthTurnover">>) ->
+    {ok, #{
+        processor_type => <<"TurnoverProcessor">>,
+        type => turnover,
+        scope => {scope, shop},
+        body_type => cash,
+        shard_size => 12,
+        time_range_type => {calendar, month}
+    }};
+mk_limit_config(<<"PartyMonthTurnover">>) ->
+    {ok, #{
+        processor_type => <<"TurnoverProcessor">>,
+        type => turnover,
+        scope => {scope, party},
+        body_type => cash,
+        shard_size => 12,
+        time_range_type => {calendar, month}
+    }};
 mk_limit_config(<<"GlobalMonthTurnover">>) ->
     {ok, #{
         processor_type => <<"TurnoverProcessor">>,

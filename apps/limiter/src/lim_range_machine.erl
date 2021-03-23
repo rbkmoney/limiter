@@ -152,8 +152,7 @@ ensure_range_exist(ID, TimeRange, LimitContext) ->
         unwrap(ensure_range_exist_in_state(TimeRange, State, LimitContext))
     end).
 
--spec ensure_range_exist_in_state(time_range(), limit_range_state(), lim_context()) ->
-    {ok, time_range_ext()}.
+-spec ensure_range_exist_in_state(time_range(), limit_range_state(), lim_context()) -> {ok, time_range_ext()}.
 ensure_range_exist_in_state(TimeRange, State, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),

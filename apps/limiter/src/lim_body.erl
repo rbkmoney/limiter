@@ -17,12 +17,14 @@
 -export_type([validate_error/0]).
 -export_type([t/0]).
 
--spec extract_and_validate_body(thrift_body(), config()) ->
-    {ok, t()} | {error, validate_error()}.
-extract_and_validate_body({cash, #limiter_base_Cash{
-    amount = Amount,
-    currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
-}}, #{body_type := cash}) ->
+-spec extract_and_validate_body(thrift_body(), config()) -> {ok, t()} | {error, validate_error()}.
+extract_and_validate_body(
+    {cash, #limiter_base_Cash{
+        amount = Amount,
+        currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
+    }},
+    #{body_type := cash}
+) ->
     {ok, {cash, {Amount, Currency}}};
 extract_and_validate_body({amount, Amount}, #{body_type := amount}) ->
     {ok, {amount, Amount}};

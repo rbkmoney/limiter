@@ -12,6 +12,6 @@
     {ok, processor()}
     | {error, notfound}.
 get_handler(<<"TurnoverProcessor">>) ->
-    {ok, lim_month_turnover_processor};
+    {ok, lim_turnover_processor};
 get_handler(_) ->
     {error, notfound}.

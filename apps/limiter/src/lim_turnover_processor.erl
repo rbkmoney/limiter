@@ -1,4 +1,4 @@
--module(lim_month_turnover_processor).
+-module(lim_turnover_processor).
 
 -include_lib("limiter_proto/include/lim_base_thrift.hrl").
 -include_lib("limiter_proto/include/lim_limiter_thrift.hrl").
@@ -27,16 +27,23 @@
     currency => currency()
 }.
 
--type get_limit_error() :: {limit | range | account | timestamp, notfound}.
+-type get_limit_error() ::
+    {limit | range | account | timestamp, notfound}
+    | {prefix, lim_config_machine:scope_prefix_error()}.
+
 -type hold_error() ::
     {timestamp, notfound}
+    | {prefix, lim_config_machine:scope_prefix_error()}
     | lim_body:validate_error()
     | lim_accounting:invalid_request_error().
+
 -type commit_error() ::
     {forbidden_operation_amount, forbidden_operation_amount_error()}
+    | {prefix, lim_config_machine:scope_prefix_error()}
     | {plan | timestamp, notfound}
     | {full | partial, lim_body:validate_error()}
     | lim_accounting:invalid_request_error().
+
 -type rollback_error() :: {plan, notfound} | lim_accounting:invalid_request_error().
 
 -export_type([get_limit_error/0]).
@@ -46,34 +53,34 @@
 
 -import(lim_pipeline, [do/1, unwrap/1, unwrap/2]).
 
--spec get_limit(lim_id(), config(), lim_context()) ->
-    {ok, limit()} | {error, get_limit_error()}.
+-spec get_limit(lim_id(), config(), lim_context()) -> {ok, limit()} | {error, get_limit_error()}.
 get_limit(LimitID, Config, LimitContext) ->
     do(fun() ->
         Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
-        LimitRangeID = construct_range_id(LimitID, Timestamp, Config),
+        LimitRangeID = unwrap(construct_range_id(LimitID, Timestamp, Config, LimitContext)),
         LimitRange = unwrap(limit, lim_range_machine:get(LimitRangeID, LimitContext)),
         #{own_amount := Amount, currency := Currency} =
             unwrap(lim_range_machine:get_range_balance(Timestamp, LimitRange, LimitContext)),
         #limiter_Limit{
             id = LimitRangeID,
-            body = {cash, #limiter_base_Cash{
-                amount = Amount,
-                currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
-            }},
+            body =
+                {cash, #limiter_base_Cash{
+                    amount = Amount,
+                    currency = #limiter_base_CurrencyRef{symbolic_code = Currency}
+                }},
             creation_time = lim_config_machine:created_at(Config),
             description = lim_config_machine:description(Config)
         }
     end).
 
--spec hold(lim_change(), config(), lim_context()) ->
-    ok | {error, hold_error()}.
+-spec hold(lim_change(), config(), lim_context()) -> ok | {error, hold_error()}.
 hold(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftBody}, Config, LimitContext) ->
     do(fun() ->
         Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
         Body = unwrap(lim_body:extract_and_validate_body(ThriftBody, Config)),
+        LimitRangeID = unwrap(construct_range_id(LimitID, Timestamp, Config, LimitContext)),
         CreateParams = #{
-            id => construct_range_id(LimitID, Timestamp, Config),
+            id => LimitRangeID,
             type => lim_config_machine:time_range_type(Config),
             created_at => Timestamp
         },
@@ -85,13 +92,12 @@ hold(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftBody}, Config
         lim_accounting:hold(construct_plan_id(LimitChange), {1, Postings}, LimitContext)
     end).
 
--spec commit(lim_change(), config(), lim_context()) ->
-    ok | {error, commit_error()}.
-commit(LimitChange, _Config, LimitContext) ->
+-spec commit(lim_change(), config(), lim_context()) -> ok | {error, commit_error()}.
+commit(LimitChange, Config, LimitContext) ->
     do(fun() ->
         case lim_context:partial_body(LimitContext) of
             {ok, _} ->
-                unwrap(partial_commit(LimitChange, _Config, LimitContext));
+                unwrap(partial_commit(LimitChange, Config, LimitContext));
             {error, _} ->
                 PlanID = construct_plan_id(LimitChange),
                 [Batch] = unwrap(plan, lim_accounting:get_plan(PlanID, LimitContext)),
@@ -99,8 +105,7 @@ commit(LimitChange, _Config, LimitContext) ->
         end
     end).
 
--spec rollback(lim_change(), config(), lim_context()) ->
-    ok | {error, rollback_error()}.
+-spec rollback(lim_change(), config(), lim_context()) -> ok | {error, rollback_error()}.
 rollback(LimitChange, _Config, LimitContext) ->
     do(fun() ->
         PlanID = construct_plan_id(LimitChange),
@@ -111,9 +116,12 @@ rollback(LimitChange, _Config, LimitContext) ->
 construct_plan_id(#limiter_LimitChange{change_id = ChangeID}) ->
     ChangeID.
 
-construct_range_id(LimitID, Timestamp, Config) ->
-    ShardID = lim_config_machine:calculate_shard_id(Timestamp, Config),
-    <<LimitID/binary, "/", ShardID/binary>>.
+construct_range_id(LimitID, Timestamp, Config, LimitContext) ->
+    do(fun() ->
+        Prefix = unwrap(prefix, lim_config_machine:mk_scope_prefix(Config, LimitContext)),
+        ShardID = lim_config_machine:calculate_shard_id(Timestamp, Config),
+        <<LimitID/binary, Prefix/binary, "/", ShardID/binary>>
+    end).
 
 partial_commit(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftFullBody}, Config, LimitContext) ->
     do(fun() ->
@@ -123,7 +131,11 @@ partial_commit(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftFul
         FullBody = unwrap(full, lim_body:extract_and_validate_body(ThriftFullBody, Config)),
         ok = unwrap(assert_partial_body(PartialBody, FullBody)),
 
-        {ok, LimitRangeState} = lim_range_machine:get(construct_range_id(LimitID, Timestamp, Config), LimitContext),
+        LimitRangeID = unwrap(construct_range_id(LimitID, Timestamp, Config, LimitContext)),
+        {ok, LimitRangeState} = lim_range_machine:get(
+            LimitRangeID,
+            LimitContext
+        ),
         {ok, #{account_id_from := AccountIDFrom, account_id_to := AccountIDTo}} =
             lim_range_machine:get_range(Timestamp, LimitRangeState),
 
@@ -152,13 +164,14 @@ compare_amount(BodyType, Partial, Full, Currency) when Full > 0 ->
             ok;
         false ->
             {error,
-                {forbidden_operation_amount, genlib_map:compact(#{
-                    body_type => BodyType,
-                    type => positive,
-                    partial => Partial,
-                    full => Full,
-                    currency => Currency
-                })}}
+                {forbidden_operation_amount,
+                    genlib_map:compact(#{
+                        body_type => BodyType,
+                        type => positive,
+                        partial => Partial,
+                        full => Full,
+                        currency => Currency
+                    })}}
     end;
 compare_amount(BodyType, Partial, Full, Currency) when Full < 0 ->
     case Partial >= Full of
@@ -166,11 +179,12 @@ compare_amount(BodyType, Partial, Full, Currency) when Full < 0 ->
             ok;
         false ->
             {error,
-                {forbidden_operation_amount, genlib_map:compact(#{
-                    body_type => BodyType,
-                    type => negative,
-                    partial => Partial,
-                    full => Full,
-                    currency => Currency
-                })}}
+                {forbidden_operation_amount,
+                    genlib_map:compact(#{
+                        body_type => BodyType,
+                        type => negative,
+                        partial => Partial,
+                        full => Full,
+                        currency => Currency
+                    })}}
     end.

@@ -34,10 +34,12 @@ handle_function(Fn, Args, WoodyCtx, Opts) ->
 -spec handle_function_(woody:func(), woody:args(), lim_context(), woody:options()) -> {ok, woody:result()}.
 handle_function_('Get', {LimitID, Clock, Context}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_id => LimitID}),
-    case lim_config_machine:get_limit(
-        LimitID,
-        lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
-    ) of
+    case
+        lim_config_machine:get_limit(
+            LimitID,
+            lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+        )
+    of
         {ok, Limit} ->
             {ok, Limit};
         {error, Error} ->
@@ -45,10 +47,12 @@ handle_function_('Get', {LimitID, Clock, Context}, LimitContext, _Opts) ->
     end;
 handle_function_('Hold', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_id => LimitID}),
-    case lim_config_machine:hold(
-        LimitChange,
-        lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
-    ) of
+    case
+        lim_config_machine:hold(
+            LimitChange,
+            lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+        )
+    of
         ok ->
             {ok, {vector, #limiter_VectorClock{state = <<>>}}};
         {error, Error} ->
@@ -56,10 +60,12 @@ handle_function_('Hold', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context},
     end;
 handle_function_('Commit', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_id => LimitID}),
-    case lim_config_machine:commit(
-        LimitChange,
-        lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
-    ) of
+    case
+        lim_config_machine:commit(
+            LimitChange,
+            lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+        )
+    of
         ok ->
             {ok, {vector, #limiter_VectorClock{state = <<>>}}};
         {error, Error} ->
@@ -67,10 +73,12 @@ handle_function_('Commit', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context
     end;
 handle_function_('Rollback', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_id => LimitID}),
-    case lim_config_machine:rollback(
-        LimitChange,
-        lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
-    ) of
+    case
+        lim_config_machine:rollback(
+            LimitChange,
+            lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+        )
+    of
         ok ->
             {ok, {vector, #limiter_VectorClock{state = <<>>}}};
         {error, Error} ->
@@ -131,18 +139,20 @@ handle_forbidden_operation_amount_error(Error = #{body_type := cash}) ->
         positive ->
             woody_error:raise(business, #limiter_ForbiddenOperationAmount{
                 amount = {cash, ?CASH(Partial, Currency)},
-                allowed_range = {cash, #limiter_base_CashRange{
-                    upper = {inclusive, ?CASH(Full, Currency)},
-                    lower = {inclusive, ?CASH(0, Currency)}
-                }}
+                allowed_range =
+                    {cash, #limiter_base_CashRange{
+                        upper = {inclusive, ?CASH(Full, Currency)},
+                        lower = {inclusive, ?CASH(0, Currency)}
+                    }}
             });
         negative ->
             woody_error:raise(business, #limiter_ForbiddenOperationAmount{
                 amount = {cash, ?CASH(Partial, Currency)},
-                allowed_range = {cash, #limiter_base_CashRange{
-                    upper = {inclusive, ?CASH(0, Currency)},
-                    lower = {inclusive, ?CASH(Full, Currency)}
-                }}
+                allowed_range =
+                    {cash, #limiter_base_CashRange{
+                        upper = {inclusive, ?CASH(0, Currency)},
+                        lower = {inclusive, ?CASH(Full, Currency)}
+                    }}
             })
     end;
 handle_forbidden_operation_amount_error(Error = #{body_type := amount}) ->
@@ -155,17 +165,19 @@ handle_forbidden_operation_amount_error(Error = #{body_type := amount}) ->
         positive ->
             woody_error:raise(business, #limiter_ForbiddenOperationAmount{
                 amount = {amount, Partial},
-                allowed_range = {amount, #limiter_base_AmountRange{
-                    upper = {inclusive, Full},
-                    lower = {inclusive, 0}
-                }}
+                allowed_range =
+                    {amount, #limiter_base_AmountRange{
+                        upper = {inclusive, Full},
+                        lower = {inclusive, 0}
+                    }}
             });
         negative ->
             woody_error:raise(business, #limiter_ForbiddenOperationAmount{
                 amount = {amount, Partial},
-                allowed_range = {amount, #limiter_base_AmountRange{
-                    upper = {inclusive, 0},
-                    lower = {inclusive, Full}
-                }}
+                allowed_range =
+                    {amount, #limiter_base_AmountRange{
+                        upper = {inclusive, 0},
+                        lower = {inclusive, Full}
+                    }}
             })
     end.
