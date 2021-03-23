@@ -47,7 +47,7 @@ handle_function_('Hold', {LimitChange = ?LIMIT_CHANGE(LimitID), Clock, Context},
     scoper:add_meta(#{limit_id => LimitID}),
     case lim_config_machine:hold(
         LimitChange,
-        im_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
+        lim_context:set_context(Context, lim_context:set_clock(Clock, LimitContext))
     ) of
         ok ->
             {ok, {vector, #limiter_VectorClock{state = <<>>}}};
