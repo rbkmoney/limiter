@@ -233,66 +233,66 @@ rollback(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
 -spec calculate_time_range(timestamp(), config()) -> time_range().
 calculate_time_range(Timestamp, Config) ->
     StartedAt = started_at(Config),
-    {{StartDate, StartTime}, USec} = lim_range_codec:parse_timestamp(StartedAt),
-    {{CurrentDate, CurrentTime}, USec} = lim_range_codec:parse_timestamp(Timestamp),
-    CurrentSec = calendar:datetime_to_gregorian_seconds({CurrentDate, CurrentTime}),
+    {StartDateTime, USec} = lim_range_codec:parse_timestamp(StartedAt),
+    {CurrentDateTime, USec} = lim_range_codec:parse_timestamp(Timestamp),
+    CurrentSec = calendar:datetime_to_gregorian_seconds(CurrentDateTime),
     case time_range_type(Config) of
         {calendar, Range} ->
-            case Range of
-                year ->
-                    {_StartYear, StartMonth, StartDay} = StartDate,
-                    {CurrentYear, _CurrentMonth, _} = CurrentDate,
-                    ClampedStartDay = clamp_month_start_day(CurrentYear, StartMonth, StartDay),
-                    LowerSec = calendar:datetime_to_gregorian_seconds(
-                        {{CurrentYear, StartMonth, ClampedStartDay}, StartTime}
-                    ),
-                    NextYearDay = clamp_month_start_day(CurrentYear + 1, StartMonth, StartDay),
-                    UpperSec = calendar:datetime_to_gregorian_seconds(
-                        {{CurrentYear + 1, StartMonth, NextYearDay}, StartTime}
-                    ),
-                    calculate_year_time_range(CurrentSec, LowerSec, UpperSec);
-                month ->
-                    {_StartYear, _StartMonth, StartDay} = StartDate,
-                    {CurrentYear, CurrentMonth, _} = CurrentDate,
-                    ClampedStartDay = clamp_month_start_day(CurrentYear, CurrentMonth, StartDay),
-                    LowerSec = calendar:datetime_to_gregorian_seconds(
-                        {{CurrentYear, CurrentMonth, ClampedStartDay}, StartTime}
-                    ),
-                    UpperSec =
-                        case CurrentMonth < 12 of
-                            true ->
-                                NextMonthDay = clamp_month_start_day(CurrentYear, CurrentMonth + 1, StartDay),
-                                calendar:datetime_to_gregorian_seconds(
-                                    {{CurrentYear, CurrentMonth + 1, NextMonthDay}, StartTime}
-                                );
-                            false ->
-                                NextYearDay = clamp_month_start_day(CurrentYear + 1, CurrentMonth, StartDay),
-                                calendar:datetime_to_gregorian_seconds(
-                                    {{CurrentYear + 1, 1, NextYearDay}, StartTime}
-                                )
-                        end,
-                    calculate_month_time_range(CurrentSec, LowerSec, UpperSec);
-                week ->
-                    StartWeekRem = calendar:date_to_gregorian_days(StartDate) rem 7,
-                    LowerWeek = (calendar:date_to_gregorian_days(CurrentDate) div 7) * 7 + StartWeekRem,
-                    UpperWeek = LowerWeek + 7,
-                    LowerSec = calendar:datetime_to_gregorian_seconds(
-                        {calendar:gregorian_days_to_date(LowerWeek), StartTime}
-                    ),
-                    UpperSec = calendar:datetime_to_gregorian_seconds(
-                        {calendar:gregorian_days_to_date(UpperWeek), StartTime}
-                    ),
-                    calculate_week_time_range(CurrentSec, LowerSec, UpperSec);
-                day ->
-                    Lower = calendar:date_to_gregorian_days(CurrentDate),
-                    UpperDate = calendar:gregorian_days_to_date(Lower + 1),
-                    LowerSec = calendar:datetime_to_gregorian_seconds({CurrentDate, StartTime}),
-                    UpperSec = calendar:datetime_to_gregorian_seconds({UpperDate, StartTime}),
-                    calculate_day_time_range(CurrentSec, LowerSec, UpperSec)
-            end;
+            calculate_calendar_time_range(Range, CurrentSec, CurrentDateTime, StartDateTime);
         {interval, _Interval} ->
             erlang:error({interval_time_range_not_implemented, Config})
     end.
+
+calculate_calendar_time_range(year, CurrentSec, {CurrentDate, _CurrentTime}, {StartDate, StartTime}) ->
+    {_StartYear, StartMonth, StartDay} = StartDate,
+    {CurrentYear, _CurrentMonth, _} = CurrentDate,
+    ClampedStartDay = clamp_month_start_day(CurrentYear, StartMonth, StartDay),
+    LowerSec = calendar:datetime_to_gregorian_seconds(
+        {{CurrentYear, StartMonth, ClampedStartDay}, StartTime}
+    ),
+    NextYearDay = clamp_month_start_day(CurrentYear + 1, StartMonth, StartDay),
+    UpperSec = calendar:datetime_to_gregorian_seconds(
+        {{CurrentYear + 1, StartMonth, NextYearDay}, StartTime}
+    ),
+    calculate_year_time_range(CurrentSec, LowerSec, UpperSec);
+calculate_calendar_time_range(month, CurrentSec, {CurrentDate, _CurrentTime}, {StartDate, StartTime}) ->
+    {_StartYear, _StartMonth, StartDay} = StartDate,
+    {CurrentYear, CurrentMonth, _} = CurrentDate,
+    ClampedStartDay = clamp_month_start_day(CurrentYear, CurrentMonth, StartDay),
+    LowerSec = calendar:datetime_to_gregorian_seconds(
+        {{CurrentYear, CurrentMonth, ClampedStartDay}, StartTime}
+    ),
+    UpperSec =
+        case CurrentMonth < 12 of
+            true ->
+                NextMonthDay = clamp_month_start_day(CurrentYear, CurrentMonth + 1, StartDay),
+                calendar:datetime_to_gregorian_seconds(
+                    {{CurrentYear, CurrentMonth + 1, NextMonthDay}, StartTime}
+                );
+            false ->
+                NextYearDay = clamp_month_start_day(CurrentYear + 1, CurrentMonth, StartDay),
+                calendar:datetime_to_gregorian_seconds(
+                    {{CurrentYear + 1, 1, NextYearDay}, StartTime}
+                )
+        end,
+    calculate_month_time_range(CurrentSec, LowerSec, UpperSec);
+calculate_calendar_time_range(week, CurrentSec, {CurrentDate, _CurrentTime}, {StartDate, StartTime}) ->
+    StartWeekRem = calendar:date_to_gregorian_days(StartDate) rem 7,
+    LowerWeek = (calendar:date_to_gregorian_days(CurrentDate) div 7) * 7 + StartWeekRem,
+    UpperWeek = LowerWeek + 7,
+    LowerSec = calendar:datetime_to_gregorian_seconds(
+        {calendar:gregorian_days_to_date(LowerWeek), StartTime}
+    ),
+    UpperSec = calendar:datetime_to_gregorian_seconds(
+        {calendar:gregorian_days_to_date(UpperWeek), StartTime}
+    ),
+    calculate_week_time_range(CurrentSec, LowerSec, UpperSec);
+calculate_calendar_time_range(day, CurrentSec, {CurrentDate, _CurrentTime}, {_StartDate, StartTime}) ->
+    Lower = calendar:date_to_gregorian_days(CurrentDate),
+    UpperDate = calendar:gregorian_days_to_date(Lower + 1),
+    LowerSec = calendar:datetime_to_gregorian_seconds({CurrentDate, StartTime}),
+    UpperSec = calendar:datetime_to_gregorian_seconds({UpperDate, StartTime}),
+    calculate_day_time_range(CurrentSec, LowerSec, UpperSec).
 
 clamp_month_start_day(Year, Month, StartDay) ->
     Last = calendar:last_day_of_the_month(Year, Month),
@@ -379,36 +379,100 @@ marshal_timestamp(DateTime) ->
 calculate_shard_id(Timestamp, Config) ->
     StartedAt = started_at(Config),
     ShardSize = shard_size(Config),
-    {{StartDate, _}, USec} = lim_range_codec:parse_timestamp(StartedAt),
-    {{CurrentDate, _}, USec} = lim_range_codec:parse_timestamp(Timestamp),
+    {StartDateTime, USec} = lim_range_codec:parse_timestamp(StartedAt),
+    {CurrentDateTime, USec} = lim_range_codec:parse_timestamp(Timestamp),
     case time_range_type(Config) of
         {calendar, Range} ->
-            Units =
-                case Range of
-                    year ->
-                        {StartYear, _, _} = StartDate,
-                        {CurrentYear, _, _} = CurrentDate,
-                        CurrentYear - StartYear;
-                    month ->
-                        {StartYear, StartMonth, _} = StartDate,
-                        {CurrentYear, CurrentMonth, _} = CurrentDate,
-                        YearDiff = CurrentYear - StartYear,
-                        MonthDiff = CurrentMonth - StartMonth,
-                        YearDiff * 12 + MonthDiff;
-                    week ->
-                        StartWeeks = calendar:date_to_gregorian_days(StartDate) div 7,
-                        CurrentWeeks = calendar:date_to_gregorian_days(CurrentDate) div 7,
-                        CurrentWeeks - StartWeeks;
-                    day ->
-                        StartDays = calendar:date_to_gregorian_days(StartDate),
-                        CurrentDays = calendar:date_to_gregorian_days(CurrentDate),
-                        CurrentDays - StartDays
-                end,
+            Units = calculate_time_units(Range, CurrentDateTime, StartDateTime),
             SignPrefix = mk_sign_prefix(Units),
             RangePrefix = mk_prefix(Range),
             mk_shard_id(<<SignPrefix/binary, "/", RangePrefix/binary>>, Units, ShardSize);
         {interval, _Interval} ->
             erlang:error({interval_time_range_not_implemented, Config})
+    end.
+
+calculate_time_units(year, {CurrentDate, CurrentTime}, {StartDate, StartTime}) ->
+    {StartYear, _, _} = StartDate,
+    {CurrentYear, _, _} = CurrentDate,
+
+    StartSecBase = calendar:datetime_to_gregorian_seconds({{StartYear, 1, 1}, {0, 0, 0}}),
+    StartSec = calendar:datetime_to_gregorian_seconds({StartDate, StartTime}),
+    CurrentSecBase = calendar:datetime_to_gregorian_seconds({{CurrentYear, 1, 1}, {0, 0, 0}}),
+    CurrentSec = calendar:datetime_to_gregorian_seconds({CurrentDate, CurrentTime}),
+
+    StartDelta = StartSec - StartSecBase,
+    CurrentDelta = CurrentSec - (CurrentSecBase + StartDelta),
+
+    case CurrentDelta >= 0 of
+        true ->
+            CurrentYear - StartYear;
+        false ->
+            CurrentYear - StartYear - 1
+    end;
+calculate_time_units(month, {CurrentDate, CurrentTime}, {StartDate, StartTime}) ->
+    {StartYear, StartMonth, _} = StartDate,
+    {CurrentYear, CurrentMonth, _} = CurrentDate,
+
+    StartSecBase = calendar:datetime_to_gregorian_seconds({{StartYear, StartMonth, 1}, {0, 0, 0}}),
+    StartSec = calendar:datetime_to_gregorian_seconds({StartDate, StartTime}),
+    CurrentSecBase = calendar:datetime_to_gregorian_seconds({{CurrentYear, CurrentMonth, 1}, {0, 0, 0}}),
+    CurrentSec = calendar:datetime_to_gregorian_seconds({CurrentDate, CurrentTime}),
+
+    StartDelta = StartSec - StartSecBase,
+    CurrentDelta = CurrentSec - (CurrentSecBase + StartDelta),
+
+    YearDiff = CurrentYear - StartYear,
+    MonthDiff = CurrentMonth - StartMonth,
+
+    case CurrentDelta >= 0 of
+        true ->
+            YearDiff * 12 + MonthDiff;
+        false ->
+            YearDiff * 12 + MonthDiff - 1
+    end;
+calculate_time_units(week, {CurrentDate, CurrentTime}, {StartDate, StartTime}) ->
+    StartWeekRem = calendar:date_to_gregorian_days(StartDate) rem 7,
+    StartWeekBase = (calendar:date_to_gregorian_days(StartDate) div 7) * 7,
+    CurrentWeekBase = (calendar:date_to_gregorian_days(CurrentDate) div 7) * 7,
+
+    StartSecBase = calendar:datetime_to_gregorian_seconds(
+        {calendar:gregorian_days_to_date(StartWeekBase), {0, 0, 0}}
+    ),
+    StartSec = calendar:datetime_to_gregorian_seconds(
+        {calendar:gregorian_days_to_date(StartWeekBase + StartWeekRem), StartTime}
+    ),
+    CurrentSecBase = calendar:datetime_to_gregorian_seconds(
+        {calendar:gregorian_days_to_date(CurrentWeekBase), {0, 0, 0}}
+    ),
+    CurrentSec = calendar:datetime_to_gregorian_seconds(
+        {calendar:gregorian_days_to_date(CurrentWeekBase + StartWeekRem), CurrentTime}
+    ),
+
+    StartDelta = StartSec - StartSecBase,
+    CurrentDelta = CurrentSec - (CurrentSecBase + StartDelta),
+
+    StartWeeks = calendar:date_to_gregorian_days(StartDate) div 7,
+    CurrentWeeks = calendar:date_to_gregorian_days(CurrentDate) div 7,
+    case CurrentDelta >= 0 of
+        true ->
+            CurrentWeeks - StartWeeks;
+        false ->
+            CurrentWeeks - StartWeeks - 1
+    end;
+calculate_time_units(day, {CurrentDate, CurrentTime}, {StartDate, StartTime}) ->
+    StartSecBase = calendar:datetime_to_gregorian_seconds({StartDate, {0, 0, 0}}),
+    StartSec = calendar:datetime_to_gregorian_seconds({StartDate, StartTime}),
+    CurrentSecBase = calendar:datetime_to_gregorian_seconds({CurrentDate, {0, 0, 0}}),
+    CurrentSec = calendar:datetime_to_gregorian_seconds({CurrentDate, CurrentTime}),
+    StartDelta = StartSec - StartSecBase,
+    CurrentDelta = CurrentSec - (CurrentSecBase + StartDelta),
+    StartDays = calendar:date_to_gregorian_days(StartDate),
+    CurrentDays = calendar:date_to_gregorian_days(CurrentDate),
+    case CurrentDelta >= 0 of
+        true ->
+            CurrentDays - StartDays;
+        false ->
+            CurrentDays - StartDays - 1
     end.
 
 mk_prefix(day) -> <<"day">>;
@@ -496,3 +560,184 @@ get_backend(WoodyCtx) ->
 -spec not_implemented(any()) -> no_return().
 not_implemented(What) ->
     erlang:error({not_implemented, What}).
+
+%%
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec check_sign_prefix_test() -> _.
+
+check_sign_prefix_test() ->
+    ?assertEqual(<<"past">>, mk_sign_prefix(-10)),
+    ?assertEqual(<<"future">>, mk_sign_prefix(0)),
+    ?assertEqual(<<"future">>, mk_sign_prefix(10)).
+
+-spec check_calculate_day_time_range_test() -> _.
+check_calculate_day_time_range_test() ->
+    Config0 = #{
+        started_at => <<"2000-01-01T00:00:00Z">>,
+        time_range_type => {calendar, day}
+    },
+    ?assertEqual(
+        #{lower => <<"2000-01-01T00:00:00Z">>, upper => <<"2000-01-02T00:00:00Z">>},
+        calculate_time_range(<<"2000-01-01T02:00:00Z">>, Config0)
+    ),
+    ?assertEqual(
+        #{lower => <<"1999-12-31T00:00:00Z">>, upper => <<"2000-01-01T00:00:00Z">>},
+        calculate_time_range(<<"1999-12-31T02:00:00Z">>, Config0)
+    ),
+    ?assertEqual(
+        #{lower => <<"2000-01-10T00:00:00Z">>, upper => <<"2000-01-11T00:00:00Z">>},
+        calculate_time_range(<<"2000-01-10T02:00:00Z">>, Config0)
+    ),
+    Config1 = Config0#{started_at => <<"2000-01-01T03:00:00Z">>},
+    ?assertEqual(
+        #{lower => <<"1999-12-31T03:00:00Z">>, upper => <<"2000-01-01T03:00:00Z">>},
+        calculate_time_range(<<"2000-01-01T02:00:00Z">>, Config1)
+    ).
+
+-spec check_calculate_week_time_range_test() -> _.
+check_calculate_week_time_range_test() ->
+    Config0 = #{
+        started_at => <<"2000-01-01T00:00:00Z">>,
+        time_range_type => {calendar, week}
+    },
+    ?assertEqual(
+        #{lower => <<"2000-01-01T00:00:00Z">>, upper => <<"2000-01-08T00:00:00Z">>},
+        calculate_time_range(<<"2000-01-01T02:00:00Z">>, Config0)
+    ),
+    ?assertEqual(
+        #{lower => <<"1999-12-25T00:00:00Z">>, upper => <<"2000-01-01T00:00:00Z">>},
+        calculate_time_range(<<"1999-12-31T02:00:00Z">>, Config0)
+    ),
+    ?assertEqual(
+        #{lower => <<"2000-09-30T00:00:00Z">>, upper => <<"2000-10-07T00:00:00Z">>},
+        calculate_time_range(<<"2000-10-03T02:00:00Z">>, Config0)
+    ),
+    Config1 = Config0#{started_at => <<"2000-01-01T03:00:00Z">>},
+    ?assertEqual(
+        #{lower => <<"1999-12-25T03:00:00Z">>, upper => <<"2000-01-01T03:00:00Z">>},
+        calculate_time_range(<<"2000-01-01T02:00:00Z">>, Config1)
+    ).
+
+-spec check_calculate_month_time_range_test() -> _.
+check_calculate_month_time_range_test() ->
+    Config0 = #{
+        started_at => <<"2000-01-01T00:00:00Z">>,
+        time_range_type => {calendar, month}
+    },
+    ?assertEqual(
+        #{lower => <<"2000-01-01T00:00:00Z">>, upper => <<"2000-02-01T00:00:00Z">>},
+        calculate_time_range(<<"2000-01-01T02:00:00Z">>, Config0)
+    ),
+    ?assertEqual(
+        #{lower => <<"1999-12-01T00:00:00Z">>, upper => <<"2000-01-01T00:00:00Z">>},
+        calculate_time_range(<<"1999-12-31T02:00:00Z">>, Config0)
+    ),
+    ?assertEqual(
+        #{lower => <<"2000-10-01T00:00:00Z">>, upper => <<"2000-11-01T00:00:00Z">>},
+        calculate_time_range(<<"2000-10-03T02:00:00Z">>, Config0)
+    ),
+    Config1 = Config0#{started_at => <<"2000-01-01T03:00:00Z">>},
+    ?assertEqual(
+        #{lower => <<"1999-12-01T03:00:00Z">>, upper => <<"2000-01-01T03:00:00Z">>},
+        calculate_time_range(<<"2000-01-01T02:00:00Z">>, Config1)
+    ).
+
+-spec check_calculate_year_time_range_test() -> _.
+check_calculate_year_time_range_test() ->
+    Config0 = #{
+        started_at => <<"2000-01-01T00:00:00Z">>,
+        time_range_type => {calendar, year}
+    },
+    ?assertEqual(
+        #{lower => <<"2000-01-01T00:00:00Z">>, upper => <<"2001-01-01T00:00:00Z">>},
+        calculate_time_range(<<"2000-01-01T02:00:00Z">>, Config0)
+    ),
+    ?assertEqual(
+        #{lower => <<"1999-01-01T00:00:00Z">>, upper => <<"2000-01-01T00:00:00Z">>},
+        calculate_time_range(<<"1999-12-31T02:00:00Z">>, Config0)
+    ),
+    ?assertEqual(
+        #{lower => <<"2010-01-01T00:00:00Z">>, upper => <<"2011-01-01T00:00:00Z">>},
+        calculate_time_range(<<"2010-10-03T02:00:00Z">>, Config0)
+    ),
+    Config1 = Config0#{started_at => <<"2000-01-01T03:00:00Z">>},
+    ?assertEqual(
+        #{lower => <<"1999-01-01T03:00:00Z">>, upper => <<"2000-01-01T03:00:00Z">>},
+        calculate_time_range(<<"2000-01-01T02:00:00Z">>, Config1)
+    ).
+
+-spec check_calculate_day_shard_id_test() -> _.
+check_calculate_day_shard_id_test() ->
+    Config0 = #{
+        started_at => <<"2000-01-01T00:00:00Z">>,
+        shard_size => 1,
+        time_range_type => {calendar, day}
+    },
+    ?assertEqual(<<"future/day/0">>, calculate_shard_id(<<"2000-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/day/2">>, calculate_shard_id(<<"2000-01-03T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"past/day/1">>, calculate_shard_id(<<"1999-12-31T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/day/1">>, calculate_shard_id(<<"2000-01-02T23:59:59Z">>, Config0)),
+    ?assertEqual(<<"future/day/1">>, calculate_shard_id(<<"2000-01-04T00:00:00Z">>, Config0#{shard_size => 2})),
+    ?assertEqual(<<"future/day/366">>, calculate_shard_id(<<"2001-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/day/12">>, calculate_shard_id(<<"2001-01-01T00:00:00Z">>, Config0#{shard_size => 30})),
+    Config1 = Config0#{started_at => <<"2000-01-01T03:00:00Z">>},
+    ?assertEqual(<<"past/day/1">>, calculate_shard_id(<<"2000-01-01T00:00:00Z">>, Config1)),
+    ?assertEqual(<<"future/day/1">>, calculate_shard_id(<<"2000-01-03T00:00:00Z">>, Config1)).
+
+-spec check_calculate_week_shard_id_test() -> _.
+check_calculate_week_shard_id_test() ->
+    Config0 = #{
+        started_at => <<"2000-01-01T00:00:00Z">>,
+        shard_size => 1,
+        time_range_type => {calendar, week}
+    },
+    ?assertEqual(<<"future/week/0">>, calculate_shard_id(<<"2000-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"past/week/1">>, calculate_shard_id(<<"1999-12-31T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/week/1">>, calculate_shard_id(<<"2000-01-08T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/week/1">>, calculate_shard_id(<<"2000-01-15T00:00:00Z">>, Config0#{shard_size => 2})),
+    ?assertEqual(<<"future/week/52">>, calculate_shard_id(<<"2001-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/week/13">>, calculate_shard_id(<<"2001-01-01T00:00:00Z">>, Config0#{shard_size => 4})),
+    Config1 = Config0#{started_at => <<"2000-01-02T03:00:00Z">>},
+    ?assertEqual(<<"past/week/1">>, calculate_shard_id(<<"2000-01-02T00:00:00Z">>, Config1)),
+    ?assertEqual(<<"future/week/0">>, calculate_shard_id(<<"2000-01-09T00:00:00Z">>, Config1)).
+
+-spec check_calculate_month_shard_id_test() -> _.
+check_calculate_month_shard_id_test() ->
+    Config0 = #{
+        started_at => <<"2000-01-01T00:00:00Z">>,
+        shard_size => 1,
+        time_range_type => {calendar, month}
+    },
+    ?assertEqual(<<"future/month/0">>, calculate_shard_id(<<"2000-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"past/month/1">>, calculate_shard_id(<<"1999-12-31T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/month/1">>, calculate_shard_id(<<"2000-02-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/month/1">>, calculate_shard_id(<<"2000-03-01T00:00:00Z">>, Config0#{shard_size => 2})),
+    ?assertEqual(<<"future/month/12">>, calculate_shard_id(<<"2001-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/month/1">>, calculate_shard_id(<<"2001-01-01T00:00:00Z">>, Config0#{shard_size => 12})),
+    Config1 = Config0#{started_at => <<"2000-01-02T03:00:00Z">>},
+    ?assertEqual(<<"past/month/1">>, calculate_shard_id(<<"2000-01-02T00:00:00Z">>, Config1)),
+    ?assertEqual(<<"future/month/0">>, calculate_shard_id(<<"2000-02-02T00:00:00Z">>, Config1)).
+
+-spec check_calculate_year_shard_id_test() -> _.
+check_calculate_year_shard_id_test() ->
+    Config0 = #{
+        started_at => <<"2000-01-01T00:00:00Z">>,
+        shard_size => 1,
+        time_range_type => {calendar, year}
+    },
+    ?assertEqual(<<"future/year/0">>, calculate_shard_id(<<"2000-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"past/year/1">>, calculate_shard_id(<<"1999-12-31T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/year/1">>, calculate_shard_id(<<"2001-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/year/1">>, calculate_shard_id(<<"2003-01-01T00:00:00Z">>, Config0#{shard_size => 2})),
+    ?assertEqual(<<"future/year/10">>, calculate_shard_id(<<"2010-01-01T00:00:00Z">>, Config0)),
+    ?assertEqual(<<"future/year/2">>, calculate_shard_id(<<"2020-01-01T00:00:00Z">>, Config0#{shard_size => 10})),
+    Config1 = Config0#{started_at => <<"2000-01-02T03:00:00Z">>},
+    ?assertEqual(<<"past/year/1">>, calculate_shard_id(<<"2000-01-01T00:00:00Z">>, Config1)),
+    ?assertEqual(<<"future/year/0">>, calculate_shard_id(<<"2001-01-01T00:00:00Z">>, Config1)).
+
+-endif.

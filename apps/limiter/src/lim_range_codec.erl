@@ -36,7 +36,7 @@ marshal(range, #{
     #limiter_range_LimitRange{
         id = ID,
         type = marshal(time_range_type, Type),
-        created_at = marshal(timestamp, CreatedAt)
+        created_at = CreatedAt
     };
 marshal(time_range, #{
     upper := Upper,
@@ -45,8 +45,8 @@ marshal(time_range, #{
     account_id_to := AccountIDTo
 }) ->
     #time_range_TimeRange{
-        upper = marshal(timestamp, Upper),
-        lower = marshal(timestamp, Lower),
+        upper = Upper,
+        lower = Lower,
         account_id_from = AccountIDFrom,
         account_id_to = AccountIDTo
     };
@@ -91,7 +91,7 @@ unmarshal(range, #limiter_range_LimitRange{
     #{
         id => ID,
         type => unmarshal(time_range_type, Type),
-        created_at => unmarshal(timestamp, CreatedAt)
+        created_at => CreatedAt
     };
 unmarshal(time_range, #time_range_TimeRange{
     upper = Upper,
@@ -100,8 +100,8 @@ unmarshal(time_range, #time_range_TimeRange{
     account_id_to = AccountIDTo
 }) ->
     #{
-        upper => unmarshal(timestamp, Upper),
-        lower => unmarshal(timestamp, Lower),
+        upper => Upper,
+        lower => Lower,
         account_id_from => AccountIDFrom,
         account_id_to => AccountIDTo
     };
@@ -136,3 +136,36 @@ parse_timestamp(Bin) ->
         error:Error:St ->
             erlang:raise(error, {bad_timestamp, Bin, Error}, St)
     end.
+
+%%
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec marshal_unmarshal_created_test() -> _.
+
+marshal_unmarshal_created_test() ->
+    Created =
+        {created, #{
+            id => <<"id">>,
+            type => {calendar, day},
+            created_at => <<"2000-01-01T00:00:00Z">>
+        }},
+    Event = {ev, lim_time:machinery_now(), Created},
+    ?assertEqual(Event, unmarshal(timestamped_change, marshal(timestamped_change, Event))).
+
+-spec marshal_unmarshal_time_range_created_test() -> _.
+marshal_unmarshal_time_range_created_test() ->
+    TimeRangeCreated =
+        {time_range_created, #{
+            account_id_from => 25,
+            account_id_to => 175,
+            upper => <<"2000-01-01T00:00:00Z">>,
+            lower => <<"2000-01-01T00:00:00Z">>
+        }},
+    Event = {ev, lim_time:machinery_now(), TimeRangeCreated},
+    ?assertEqual(Event, unmarshal(timestamped_change, marshal(timestamped_change, Event))).
+
+-endif.
