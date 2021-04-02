@@ -108,10 +108,8 @@ ranges(_State) ->
 
 -spec get(lim_id(), lim_context()) -> {ok, limit_range_state()} | {error, notfound}.
 get(ID, LimitContext) ->
-    do(fun() ->
-        {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
-        unwrap(get_state(ID, WoodyCtx))
-    end).
+    {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
+    get_state(ID, WoodyCtx).
 
 -spec ensure_exist(create_params(), lim_context()) -> {ok, limit_range_state()}.
 ensure_exist(Params = #{id := ID}, LimitContext) ->
@@ -135,11 +133,12 @@ get_range(Timestamp, State) ->
 
 -spec get_range_balance(timestamp(), limit_range_state(), lim_context()) ->
     {ok, lim_accounting:balance()}
-    | {error, {range | account, notfound}}.
+    | {error, {range, notfound}}.
 get_range_balance(Timestamp, State, LimitContext) ->
     do(fun() ->
         #{account_id_to := AccountID} = unwrap(range, find_time_range(Timestamp, ranges(State))),
-        unwrap(account, lim_accounting:get_balance(AccountID, LimitContext))
+        {ok, Balance} = lim_accounting:get_balance(AccountID, LimitContext),
+        Balance
     end).
 
 -spec ensure_range_exist(lim_id(), time_range(), lim_context()) ->
@@ -154,15 +153,13 @@ ensure_range_exist(ID, TimeRange, LimitContext) ->
 
 -spec ensure_range_exist_in_state(time_range(), limit_range_state(), lim_context()) -> {ok, time_range_ext()}.
 ensure_range_exist_in_state(TimeRange, State, LimitContext) ->
-    do(fun() ->
-        {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
-        case find_time_range(TimeRange, ranges(State)) of
-            {error, notfound} ->
-                unwrap(call(id(State), {add_range, TimeRange}, WoodyCtx));
-            {ok, Range} ->
-                {ok, Range}
-        end
-    end).
+    {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
+    case find_time_range(TimeRange, ranges(State)) of
+        {error, notfound} ->
+            call(id(State), {add_range, TimeRange}, WoodyCtx);
+        {ok, Range} ->
+            {ok, Range}
+    end.
 
 %%% Machinery callbacks
 

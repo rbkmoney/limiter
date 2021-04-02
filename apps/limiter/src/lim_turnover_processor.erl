@@ -27,20 +27,15 @@
     currency => currency()
 }.
 
--type get_limit_error() ::
-    {limit | range | account | timestamp, notfound}
-    | {prefix, lim_config_machine:scope_prefix_error()}.
+-type get_limit_error() :: {limit | range, notfound}.
 
 -type hold_error() ::
-    {timestamp, notfound}
-    | {prefix, lim_config_machine:scope_prefix_error()}
-    | lim_body:validate_error()
+    lim_body:validate_error()
     | lim_accounting:invalid_request_error().
 
 -type commit_error() ::
     {forbidden_operation_amount, forbidden_operation_amount_error()}
-    | {prefix, lim_config_machine:scope_prefix_error()}
-    | {plan | timestamp, notfound}
+    | {plan, notfound}
     | {full | partial, lim_body:validate_error()}
     | lim_accounting:invalid_request_error().
 
@@ -56,8 +51,8 @@
 -spec get_limit(lim_id(), config(), lim_context()) -> {ok, limit()} | {error, get_limit_error()}.
 get_limit(LimitID, Config, LimitContext) ->
     do(fun() ->
-        Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
-        LimitRangeID = unwrap(construct_range_id(LimitID, Timestamp, Config, LimitContext)),
+        {ok, Timestamp} = lim_context:operation_timestamp(LimitContext),
+        LimitRangeID = construct_range_id(LimitID, Timestamp, Config, LimitContext),
         LimitRange = unwrap(limit, lim_range_machine:get(LimitRangeID, LimitContext)),
         #{own_amount := Amount, currency := Currency} =
             unwrap(lim_range_machine:get_range_balance(Timestamp, LimitRange, LimitContext)),
@@ -76,9 +71,9 @@ get_limit(LimitID, Config, LimitContext) ->
 -spec hold(lim_change(), config(), lim_context()) -> ok | {error, hold_error()}.
 hold(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftBody}, Config, LimitContext) ->
     do(fun() ->
-        Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
+        {ok, Timestamp} = lim_context:operation_timestamp(LimitContext),
         Body = unwrap(lim_body:extract_and_validate_body(ThriftBody, Config)),
-        LimitRangeID = unwrap(construct_range_id(LimitID, Timestamp, Config, LimitContext)),
+        LimitRangeID = construct_range_id(LimitID, Timestamp, Config, LimitContext),
         CreateParams = #{
             id => LimitRangeID,
             type => lim_config_machine:time_range_type(Config),
@@ -117,21 +112,19 @@ construct_plan_id(#limiter_LimitChange{change_id = ChangeID}) ->
     ChangeID.
 
 construct_range_id(LimitID, Timestamp, Config, LimitContext) ->
-    do(fun() ->
-        Prefix = unwrap(prefix, lim_config_machine:mk_scope_prefix(Config, LimitContext)),
-        ShardID = lim_config_machine:calculate_shard_id(Timestamp, Config),
-        <<LimitID/binary, Prefix/binary, "/", ShardID/binary>>
-    end).
+    {ok, Prefix} = lim_config_machine:mk_scope_prefix(Config, LimitContext),
+    ShardID = lim_config_machine:calculate_shard_id(Timestamp, Config),
+    <<LimitID/binary, Prefix/binary, "/", ShardID/binary>>.
 
 partial_commit(LimitChange = #limiter_LimitChange{id = LimitID, body = ThriftFullBody}, Config, LimitContext) ->
     do(fun() ->
-        Timestamp = unwrap(timestamp, lim_context:operation_timestamp(LimitContext)),
+        {ok, Timestamp} = lim_context:operation_timestamp(LimitContext),
         {ok, ThriftPartialBody} = lim_context:partial_body(LimitContext),
         PartialBody = unwrap(partial, lim_body:extract_and_validate_body(ThriftPartialBody, Config)),
         FullBody = unwrap(full, lim_body:extract_and_validate_body(ThriftFullBody, Config)),
         ok = unwrap(assert_partial_body(PartialBody, FullBody)),
 
-        LimitRangeID = unwrap(construct_range_id(LimitID, Timestamp, Config, LimitContext)),
+        LimitRangeID = construct_range_id(LimitID, Timestamp, Config, LimitContext),
         {ok, LimitRangeState} = lim_range_machine:get(
             LimitRangeID,
             LimitContext

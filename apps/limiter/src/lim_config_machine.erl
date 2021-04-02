@@ -74,8 +74,6 @@
 -type limit() :: lim_limiter_thrift:'Limit'().
 -type timestamp() :: lim_base_thrift:'Timestamp'().
 
--type scope_prefix_error() :: {failed_to_find_data_for, party | shop | wallet | identity}.
-
 -export_type([config/0]).
 -export_type([body_type/0]).
 -export_type([limit_type/0]).
@@ -88,7 +86,6 @@
 -export_type([limit/0]).
 -export_type([timestamp/0]).
 -export_type([state/0]).
--export_type([scope_prefix_error/0]).
 
 %% Machinery callbacks
 
@@ -142,7 +139,7 @@
 -type commit_error() :: lim_turnover_processor:commit_error().
 -type rollback_error() :: lim_turnover_processor:rollback_error().
 
--type config_error() :: {handler | config, notfound}.
+-type config_error() :: {config, notfound}.
 
 -import(lim_pipeline, [do/1, unwrap/1, unwrap/2]).
 
@@ -201,33 +198,36 @@ get(ID, LimitContext) ->
 -spec get_limit(lim_id(), lim_context()) -> {ok, limit()} | {error, config_error() | {processor(), get_limit_error()}}.
 get_limit(ID, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
-        Handler = unwrap(handler, lim_router:get_handler(Processor)),
+        {Handler, Config} = unwrap(get_handler(ID, LimitContext)),
         unwrap(Handler, Handler:get_limit(ID, Config, LimitContext))
     end).
 
 -spec hold(lim_change(), lim_context()) -> ok | {error, config_error() | {processor(), hold_error()}}.
 hold(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
-        Handler = unwrap(handler, lim_router:get_handler(Processor)),
+        {Handler, Config} = unwrap(get_handler(ID, LimitContext)),
         unwrap(Handler, Handler:hold(LimitChange, Config, LimitContext))
     end).
 
 -spec commit(lim_change(), lim_context()) -> ok | {error, config_error() | {processor(), commit_error()}}.
 commit(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
-        Handler = unwrap(handler, lim_router:get_handler(Processor)),
+        {Handler, Config} = unwrap(get_handler(ID, LimitContext)),
         unwrap(Handler, Handler:commit(LimitChange, Config, LimitContext))
     end).
 
 -spec rollback(lim_change(), lim_context()) -> ok | {error, config_error() | {processor(), rollback_error()}}.
 rollback(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
-        Handler = unwrap(handler, lim_router:get_handler(Processor)),
+        {Handler, Config} = unwrap(get_handler(ID, LimitContext)),
         unwrap(Handler, Handler:rollback(LimitChange, Config, LimitContext))
+    end).
+
+get_handler(ID, LimitContext) ->
+    do(fun() ->
+        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
+        {ok, Handler} = lim_router:get_handler(Processor),
+        {Handler, Config}
     end).
 
 -spec calculate_time_range(timestamp(), config()) -> time_range().
@@ -488,42 +488,22 @@ mk_shard_id(Prefix, Units0, ShardSize) ->
     ID = list_to_binary(integer_to_list(Units1 div ShardSize)),
     <<Prefix/binary, "/", ID/binary>>.
 
--spec mk_scope_prefix(config(), lim_context()) -> {ok, prefix()} | {error, scope_prefix_error()}.
+-spec mk_scope_prefix(config(), lim_context()) -> {ok, prefix()}.
 mk_scope_prefix(#{scope := global}, _LimitContext) ->
     {ok, <<>>};
 mk_scope_prefix(#{scope := {scope, party}}, LimitContext) ->
-    case lim_context:party_id(LimitContext) of
-        {ok, PartyID} ->
-            {ok, <<"/", PartyID/binary>>};
-        {error, notfound} ->
-            {error, {failed_to_find_data_for, party}}
-    end;
+    {ok, PartyID} = lim_context:party_id(LimitContext),
+    {ok, <<"/", PartyID/binary>>};
 mk_scope_prefix(#{scope := {scope, shop}}, LimitContext) ->
-    case lim_context:party_id(LimitContext) of
-        {ok, PartyID} ->
-            case lim_context:shop_id(LimitContext) of
-                {ok, ShopID} ->
-                    {ok, <<"/", PartyID/binary, "/", ShopID/binary>>};
-                {error, notfound} ->
-                    {error, {failed_to_find_data_for, shop}}
-            end;
-        {error, notfound} ->
-            {error, {failed_to_find_data_for, party}}
-    end;
+    {ok, PartyID} = lim_context:party_id(LimitContext),
+    {ok, ShopID} = lim_context:shop_id(LimitContext),
+    {ok, <<"/", PartyID/binary, "/", ShopID/binary>>};
 mk_scope_prefix(#{scope := {scope, wallet}}, LimitContext) ->
-    case lim_context:wallet_id(LimitContext) of
-        {ok, WalletID} ->
-            {ok, <<"/", WalletID/binary>>};
-        {error, notfound} ->
-            {error, {failed_to_find_data_for, wallet}}
-    end;
+    {ok, WalletID} = lim_context:wallet_id(LimitContext),
+    {ok, <<"/", WalletID/binary>>};
 mk_scope_prefix(#{scope := {scope, identity}}, LimitContext) ->
-    case lim_context:identity_id(LimitContext) of
-        {ok, IdentityID} ->
-            {ok, <<"/", IdentityID/binary>>};
-        {error, notfound} ->
-            {error, {failed_to_find_data_for, identity}}
-    end.
+    {ok, IdentityID} = lim_context:identity_id(LimitContext),
+    {ok, <<"/", IdentityID/binary>>}.
 
 %%% Machinery callbacks
 
