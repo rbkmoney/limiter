@@ -18,8 +18,8 @@
 -type value_type() :: machinery_mg_schema:vt().
 -type context() :: machinery_mg_schema:context().
 
--type event() :: {}.
--type aux_state() :: lim_config_machine:state().
+-type event() :: lim_config_machine:timestamped_event(lim_config_machine:event()).
+-type aux_state() :: term().
 -type call_args() :: term().
 -type call_response() :: term().
 
@@ -33,18 +33,18 @@
 
 -spec get_version(value_type()) -> machinery_mg_schema:version().
 get_version(event) ->
-    undefined;
+    ?CURRENT_EVENT_FORMAT_VERSION;
 get_version(aux_state) ->
-    ?CURRENT_EVENT_FORMAT_VERSION.
+    undefined.
 
 -spec marshal(type(), value(data()), context()) -> {machinery_msgpack:t(), context()}.
-marshal({aux_state, FormatVersion}, State, Context) ->
-    marshal_aux_state(FormatVersion, State, Context);
+marshal({event, FormatVersion}, TimestampedChange, Context) ->
+    marshal_event(FormatVersion, TimestampedChange, Context);
 marshal(T, V, C) when
     T =:= {args, init} orelse
         T =:= {args, call} orelse
         T =:= {args, repair} orelse
-        T =:= {event, undefined} orelse
+        T =:= {aux_state, undefined} orelse
         T =:= {response, call} orelse
         T =:= {response, {repair, success}} orelse
         T =:= {response, {repair, failure}}
@@ -52,13 +52,13 @@ marshal(T, V, C) when
     machinery_mg_schema_generic:marshal(T, V, C).
 
 -spec unmarshal(type(), machinery_msgpack:t(), context()) -> {data(), context()}.
-unmarshal({aux_state, FormatVersion}, EncodedState, Context) ->
-    unmarshal_aux_state(FormatVersion, EncodedState, Context);
+unmarshal({event, FormatVersion}, EncodedChange, Context) ->
+    unmarshal_event(FormatVersion, EncodedChange, Context);
 unmarshal(T, V, C) when
     T =:= {args, init} orelse
         T =:= {args, call} orelse
         T =:= {args, repair} orelse
-        T =:= {event, undefined} orelse
+        T =:= {aux_state, undefined} orelse
         T =:= {response, call} orelse
         T =:= {response, {repair, success}} orelse
         T =:= {response, {repair, failure}}
@@ -67,10 +67,45 @@ unmarshal(T, V, C) when
 
 %% Internals
 
--spec marshal_aux_state(machinery_mg_schema:version(), aux_state(), context()) -> {machinery_msgpack:t(), context()}.
-marshal_aux_state(1, AuxState, Context) ->
-    machinery_mg_schema_generic:marshal({aux_state, 1}, AuxState, Context).
+-spec marshal_event(machinery_mg_schema:version(), event(), context()) -> {machinery_msgpack:t(), context()}.
+marshal_event(1, TimestampedChange, Context) ->
+    ThriftChange = lim_config_codec:marshal(timestamped_change, TimestampedChange),
+    Type = {struct, struct, {lim_limiter_config_thrift, 'TimestampedChange'}},
+    {{bin, lim_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
--spec unmarshal_aux_state(machinery_mg_schema:version(), machinery_msgpack:t(), context()) -> {aux_state(), context()}.
-unmarshal_aux_state(1, EncodedAuxState, Context) ->
-    machinery_mg_schema_generic:unmarshal({aux_state, 1}, EncodedAuxState, Context).
+-spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) -> {event(), context()}.
+unmarshal_event(1, EncodedChange, Context) ->
+    {bin, EncodedThriftChange} = EncodedChange,
+    Type = {struct, struct, {lim_limiter_config_thrift, 'TimestampedChange'}},
+    ThriftChange = lim_proto_utils:deserialize(Type, EncodedThriftChange),
+    {lim_config_codec:unmarshal(timestamped_change, ThriftChange), Context}.
+
+%%
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec marshal_unmarshal_created_test() -> _.
+marshal_unmarshal_created_test() ->
+    Created =
+        {created, #{
+            id => <<"id">>,
+            processor_type => <<"type">>,
+            created_at => lim_time:now(),
+            body_type => {cash, <<"RUB">>},
+            started_at => <<"2000-01-01T00:00:00Z">>,
+            shard_size => 7,
+            time_range_type => {calendar, day},
+            context_type => payment_processing,
+            type => turnover,
+            scope => {scope, party},
+            description => <<"description">>
+        }},
+    Event = {ev, lim_time:machinery_now(), Created},
+    {Marshaled, _ } = marshal_event(1, Event, {}),
+    {Unmarshaled, _ } = unmarshal_event(1, Marshaled, {}),
+    ?assertEqual(Event, Unmarshaled).
+
+-endif.

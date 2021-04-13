@@ -52,7 +52,7 @@
 }.
 
 -type timestamped_event(T) ::
-    {ev, timestamp(), T}.
+    {ev, machinery:timestamp(), T}.
 
 -type event() ::
     {created, limit_range()}
@@ -219,7 +219,7 @@ find_time_range(TimeRange, [_Head | Rest]) ->
 
 -spec start(lim_id(), create_params(), woody_context()) -> ok | {error, exists}.
 start(ID, Params, WoodyCtx) ->
-    machinery:start(?NS, ID, Params, get_backend(WoodyCtx)).
+    machinery:start(?NS, ID, [{created, Params}], get_backend(WoodyCtx)).
 
 -spec call(lim_id(), range_call(), woody_context()) -> {ok, response(_)} | {error, notfound}.
 call(ID, Msg, WoodyCtx) ->

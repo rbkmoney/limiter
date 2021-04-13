@@ -94,7 +94,6 @@
 -export_type([lim_change/0]).
 -export_type([limit/0]).
 -export_type([timestamp/0]).
--export_type([state/0]).
 
 %% Machinery callbacks
 
@@ -105,15 +104,20 @@
 -export([process_timeout/3]).
 -export([process_repair/4]).
 
--type state() :: #{
-    config := config()
-}.
+-type timestamped_event(T) ::
+    {ev, machinery:timestamp(), T}.
+
+-type event() ::
+    {created, config()}.
 
 -type args(T) :: machinery:args(T).
--type machine() :: machinery:machine(_, state()).
+-type machine() :: machinery:machine(event(),_).
 -type handler_args() :: machinery:handler_args(_).
 -type handler_opts() :: machinery:handler_opts(_).
--type result(A) :: machinery:result(none(), A).
+-type result() :: machinery:result(timestamped_event(event()), none()).
+
+-export_type([timestamped_event/1]).
+-export_type([event/0]).
 
 -define(NS, 'lim_config/v1').
 
@@ -188,13 +192,17 @@ time_range_type(#{time_range_type := Value}) ->
 processor_type(#{processor_type := Value}) ->
     Value.
 
--spec type(config()) -> limit_type().
+-spec type(config()) -> lim_maybe:maybe(limit_type()).
 type(#{type := Value}) ->
-    Value.
+    Value;
+type(_) ->
+    undefined.
 
--spec scope(config()) -> limit_scope().
+-spec scope(config()) -> lim_maybe:maybe(limit_scope()).
 scope(#{scope := Value}) ->
-    Value.
+    Value;
+scope(_) ->
+    undefined.
 
 -spec context_type(config()) -> context_type().
 context_type(#{context_type := Value}) ->
@@ -206,7 +214,7 @@ context_type(#{context_type := Value}) ->
 start(ID, Params, LimitContext) ->
     {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
     Config = genlib_map:compact(Params#{id => ID, created_at => lim_time:now()}),
-    _ = machinery:start(?NS, ID, Config, get_backend(WoodyCtx)),
+    _ = machinery:start(?NS, ID, [{created, Config}], get_backend(WoodyCtx)),
     {ok, Config}.
 
 -spec get(lim_id(), lim_context()) -> {ok, config()} | {error, notfound}.
@@ -214,10 +222,7 @@ get(ID, LimitContext) ->
     do(fun() ->
         {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
         Machine = unwrap(machinery:get(?NS, ID, get_backend(WoodyCtx))),
-        #{
-            config := Config
-        } = get_machine_state(Machine),
-        Config
+        collapse(Machine)
     end).
 
 -spec get_limit(lim_id(), lim_context()) -> {ok, limit()} | {error, config_error() | {processor(), get_limit_error()}}.
@@ -526,12 +531,10 @@ mk_scope_prefix(#{scope := {scope, shop}}, LimitContext) ->
 
 %%% Machinery callbacks
 
--spec init(args(config()), machine(), handler_args(), handler_opts()) -> result(state()).
-init(Config, _Machine, _HandlerArgs, _HandlerOpts) ->
+-spec init(args([event()]), machine(), handler_args(), handler_opts()) -> result().
+init(Events, _Machine, _HandlerArgs, _HandlerOpts) ->
     #{
-        aux_state => #{
-            config => Config
-        }
+        events => emit_events(Events)
     }.
 
 -spec process_call(args(_), machine(), handler_args(), handler_opts()) -> no_return().
@@ -548,9 +551,14 @@ process_repair(_Args, _Machine, _HandlerArgs, _HandlerOpts) ->
 
 %%% Internal functions
 
--spec get_machine_state(machine()) -> state().
-get_machine_state(#{aux_state := State}) ->
-    State.
+emit_events(Events) ->
+    emit_timestamped_events(Events, lim_time:machinery_now()).
+
+emit_timestamped_events(Events, Ts) ->
+    [{ev, Ts, Body} || Body <- Events].
+
+collapse(#{history := History}) ->
+    lists:foldl(fun(Ev, St) -> apply_event(Ev, St) end, undefined, History).
 
 -spec get_backend(woody_context()) -> machinery_mg_backend:backend().
 get_backend(WoodyCtx) ->
@@ -559,6 +567,14 @@ get_backend(WoodyCtx) ->
 -spec not_implemented(any()) -> no_return().
 not_implemented(What) ->
     erlang:error({not_implemented, What}).
+
+%%
+
+%%
+
+-spec apply_event(event(), lim_maybe:maybe(config())) -> config().
+apply_event({created, Config}, undefined) ->
+    Config.
 
 %%
 

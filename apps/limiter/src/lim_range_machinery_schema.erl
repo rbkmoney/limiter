@@ -92,7 +92,8 @@ marshal_unmarshal_created_test() ->
     Created = {created, #{
         id => <<"id">>,
         type => {calendar, day},
-        created_at => <<"2000-01-01T00:00:00Z">>
+        created_at => <<"2000-01-01T00:00:00Z">>,
+        currency => <<"USD">>
     }},
     Event = {ev, lim_time:machinery_now(), Created},
     {Marshaled, _ } = marshal_event(1, Event, {}),

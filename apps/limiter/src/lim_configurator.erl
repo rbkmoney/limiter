@@ -39,10 +39,14 @@ handle_function_(
         {ok, Config} ->
             {ok, LimitConfig} = lim_config_machine:start(
                 ID,
-                Config#{description => Description, started_at => StartedAt, body_type => unmarshal_body_type(BodyType)},
+                Config#{
+                    description => Description,
+                    started_at => StartedAt,
+                    body_type => lim_config_codec:unmarshal_body_type(BodyType)
+                },
                 LimitContext
             ),
-            {ok, marshal_config(LimitConfig)};
+            {ok, lim_config_codec:marshal_config(LimitConfig)};
         {error, {name, notfound}} ->
             woody_error:raise(
                 business,
@@ -53,7 +57,7 @@ handle_function_('Get', {LimitID}, LimitContext, _Opts) ->
     scoper:add_meta(#{limit_config_id => LimitID}),
     case lim_config_machine:get(LimitID, LimitContext) of
         {ok, LimitConfig} ->
-            {ok, marshal_config(LimitConfig)};
+            {ok, lim_config_codec:marshal_config(LimitConfig)};
         {error, notfound} ->
             woody_error:raise(business, #limiter_cfg_LimitConfigNotFound{})
     end.
@@ -87,64 +91,3 @@ mk_limit_config(<<"GlobalMonthTurnover">>) ->
     }};
 mk_limit_config(_) ->
     {error, {name, notfound}}.
-
-marshal_config(Config) ->
-    #limiter_config_LimitConfig{
-        id = lim_config_machine:id(Config),
-        processor_type = lim_config_machine:processor_type(Config),
-        description = lim_config_machine:description(Config),
-        body_type = marshal_body_type(lim_config_machine:body_type(Config)),
-        created_at = lim_config_machine:created_at(Config),
-        started_at = lim_config_machine:started_at(Config),
-        shard_size = lim_config_machine:shard_size(Config),
-        time_range_type = marshal_time_range_type(lim_config_machine:time_range_type(Config)),
-        context_type = marshal_context_type(lim_config_machine:context_type(Config)),
-        type = marshal_type(lim_config_machine:type(Config)),
-        scope = marshal_scope(lim_config_machine:scope(Config))
-    }.
-
-marshal_body_type(amount) ->
-    {amount, #limiter_config_LimitBodyTypeAmount{}};
-marshal_body_type({cash, Currency}) ->
-    {cash, #limiter_config_LimitBodyTypeCash{currency = Currency}}.
-
-marshal_time_range_type({calendar, CalendarType}) ->
-    {calendar, marshal_calendar_time_range_type(CalendarType)};
-marshal_time_range_type({interval, Amount}) ->
-    {interval, #time_range_TimeRangeTypeInterval{amount = Amount}}.
-
-marshal_context_type(payment_processing) ->
-    {payment_processing, #limiter_config_LimitContextTypePaymentProcessing{}}.
-
-marshal_calendar_time_range_type(day) ->
-    {day, #time_range_TimeRangeTypeCalendarDay{}};
-marshal_calendar_time_range_type(week) ->
-    {week, #time_range_TimeRangeTypeCalendarWeek{}};
-marshal_calendar_time_range_type(month) ->
-    {month, #time_range_TimeRangeTypeCalendarMonth{}};
-marshal_calendar_time_range_type(year) ->
-    {year, #time_range_TimeRangeTypeCalendarYear{}}.
-
-marshal_type(turnover) ->
-    {turnover, #limiter_config_LimitTypeTurnover{}}.
-
-marshal_scope({scope, Type}) ->
-    {scope, marshal_scope_type(Type)};
-marshal_scope(global) ->
-    {scope_global, #limiter_config_LimitScopeGlobal{}}.
-
-marshal_scope_type(party) ->
-    {party, #limiter_config_LimitScopeTypeParty{}};
-marshal_scope_type(shop) ->
-    {shop, #limiter_config_LimitScopeTypeShop{}};
-marshal_scope_type(wallet) ->
-    {wallet, #limiter_config_LimitScopeTypeWallet{}};
-marshal_scope_type(identity) ->
-    {identity, #limiter_config_LimitScopeTypeIdentity{}}.
-
-%%
-
-unmarshal_body_type({amount, _}) ->
-    amount;
-unmarshal_body_type({cash, #limiter_config_LimitBodyTypeCash{currency = Currency}}) ->
-    {cash, Currency}.
