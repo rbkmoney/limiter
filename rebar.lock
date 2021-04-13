@@ -35,7 +35,7 @@
  {<<"jsx">>,{pkg,<<"jsx">>,<<"3.0.0">>},1},
  {<<"limiter_proto">>,
   {git,"git@github.com:rbkmoney/limiter-proto.git",
-       {ref,"07641e37c8dd34930194055faeb9acaaa56710f6"}},
+       {ref,"c7c8330104f05a9adec21e725f84caa9840dbe04"}},
   0},
  {<<"machinery">>,
   {git,"https://github.com/rbkmoney/machinery.git",
@@ -69,6 +69,10 @@
  {<<"woody">>,
   {git,"https://github.com/rbkmoney/woody_erlang.git",
        {ref,"58f56b462429ab1fee65e1bdb34b73512406ba00"}},
+  0},
+ {<<"xrates_proto">>,
+  {git,"git@github.com:rbkmoney/xrates-proto.git",
+       {ref,"66906cd0a8ee9a00fb447f3c3e5b09d3c6fab942"}},
   0}]}.
 [
 {pkg_hash,[

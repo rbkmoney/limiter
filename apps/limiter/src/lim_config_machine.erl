@@ -12,6 +12,10 @@
 -export([started_at/1]).
 -export([shard_size/1]).
 -export([time_range_type/1]).
+-export([processor_type/1]).
+-export([type/1]).
+-export([scope/1]).
+-export([context_type/1]).
 
 %% API
 
@@ -35,7 +39,7 @@
 
 -type limit_type() :: turnover.
 -type limit_scope() :: global | {scope, party | shop | wallet | identity}.
--type body_type() :: cash | amount.
+-type body_type() :: {cash, currency()} | amount.
 -type shard_size() :: pos_integer().
 -type shard_id() :: binary().
 -type prefix() :: binary().
@@ -44,6 +48,7 @@
     upper := timestamp(),
     lower := timestamp()
 }.
+-type context_type() :: lim_context:context_type().
 
 -type config() :: #{
     id := lim_id(),
@@ -53,6 +58,7 @@
     started_at := timestamp(),
     shard_size := shard_size(),
     time_range_type := time_range_type(),
+    context_type := context_type(),
     type => limit_type(),
     scope => limit_scope(),
     description => description()
@@ -64,6 +70,7 @@
     started_at := timestamp(),
     shard_size := shard_size(),
     time_range_type := time_range_type(),
+    context_type := context_type(),
     type => limit_type(),
     scope => limit_scope(),
     description => description()
@@ -73,6 +80,7 @@
 -type lim_change() :: lim_limiter_thrift:'LimitChange'().
 -type limit() :: lim_limiter_thrift:'Limit'().
 -type timestamp() :: lim_base_thrift:'Timestamp'().
+-type currency() :: lim_base_thrift:'CurrencySymbolicCode'().
 
 -export_type([config/0]).
 -export_type([body_type/0]).
@@ -81,6 +89,7 @@
 -export_type([time_range_type/0]).
 -export_type([time_range/0]).
 -export_type([create_params/0]).
+-export_type([currency/0]).
 -export_type([lim_id/0]).
 -export_type([lim_change/0]).
 -export_type([limit/0]).
@@ -173,6 +182,22 @@ shard_size(#{shard_size := Value}) ->
 
 -spec time_range_type(config()) -> time_range_type().
 time_range_type(#{time_range_type := Value}) ->
+    Value.
+
+-spec processor_type(config()) -> processor_type().
+processor_type(#{processor_type := Value}) ->
+    Value.
+
+-spec type(config()) -> limit_type().
+type(#{type := Value}) ->
+    Value.
+
+-spec scope(config()) -> limit_scope().
+scope(#{scope := Value}) ->
+    Value.
+
+-spec context_type(config()) -> context_type().
+context_type(#{context_type := Value}) ->
     Value.
 
 %%
@@ -492,18 +517,12 @@ mk_shard_id(Prefix, Units0, ShardSize) ->
 mk_scope_prefix(#{scope := global}, _LimitContext) ->
     {ok, <<>>};
 mk_scope_prefix(#{scope := {scope, party}}, LimitContext) ->
-    {ok, PartyID} = lim_context:party_id(LimitContext),
+    {ok, PartyID} = lim_context:get_from_context(payment_processing, owner_id, invoice, LimitContext),
     {ok, <<"/", PartyID/binary>>};
 mk_scope_prefix(#{scope := {scope, shop}}, LimitContext) ->
-    {ok, PartyID} = lim_context:party_id(LimitContext),
-    {ok, ShopID} = lim_context:shop_id(LimitContext),
-    {ok, <<"/", PartyID/binary, "/", ShopID/binary>>};
-mk_scope_prefix(#{scope := {scope, wallet}}, LimitContext) ->
-    {ok, WalletID} = lim_context:wallet_id(LimitContext),
-    {ok, <<"/", WalletID/binary>>};
-mk_scope_prefix(#{scope := {scope, identity}}, LimitContext) ->
-    {ok, IdentityID} = lim_context:identity_id(LimitContext),
-    {ok, <<"/", IdentityID/binary>>}.
+    {ok, PartyID} = lim_context:get_from_context(payment_processing, owner_id, invoice, LimitContext),
+    {ok, ShopID} = lim_context:get_from_context(payment_processing, shop_id, invoice, LimitContext),
+    {ok, <<"/", PartyID/binary, "/", ShopID/binary>>}.
 
 %%% Machinery callbacks
 

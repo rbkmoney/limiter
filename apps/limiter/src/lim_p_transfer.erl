@@ -23,7 +23,7 @@
 -export_type([forbidden_operation_amount_error/0]).
 
 -spec construct_postings(account_id(), account_id(), body()) -> [posting()].
-construct_postings(AccountFrom, AccountTo, {cash, {Amount, Currency}}) ->
+construct_postings(AccountFrom, AccountTo, {cash, #{amount := Amount, currency := Currency}}) ->
     [
         #accounter_Posting{
             from_id = AccountFrom,

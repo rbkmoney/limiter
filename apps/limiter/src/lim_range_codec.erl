@@ -28,7 +28,7 @@ marshal(change, {created, Range}) ->
     {created, #limiter_range_CreatedChange{limit_range = marshal(range, Range)}};
 marshal(change, {time_range_created, TimeRange}) ->
     {time_range_created, #limiter_range_TimeRangeCreatedChange{time_range = marshal(time_range, TimeRange)}};
-marshal(range, #{
+marshal(range, Range = #{
     id := ID,
     type := Type,
     created_at := CreatedAt
@@ -36,7 +36,8 @@ marshal(range, #{
     #limiter_range_LimitRange{
         id = ID,
         type = marshal(time_range_type, Type),
-        created_at = CreatedAt
+        created_at = CreatedAt,
+        currency = lim_range_machine:currency(Range)
     };
 marshal(time_range, #{
     upper := Upper,
@@ -86,13 +87,15 @@ unmarshal(change, {time_range_created, #limiter_range_TimeRangeCreatedChange{tim
 unmarshal(range, #limiter_range_LimitRange{
     id = ID,
     type = Type,
-    created_at = CreatedAt
+    created_at = CreatedAt,
+    currency = Currency
 }) ->
-    #{
+    genlib_map:compact(#{
         id => ID,
         type => unmarshal(time_range_type, Type),
-        created_at => CreatedAt
-    };
+        created_at => CreatedAt,
+        currency => Currency
+    });
 unmarshal(time_range, #time_range_TimeRange{
     upper = Upper,
     lower = Lower,
@@ -151,7 +154,8 @@ marshal_unmarshal_created_test() ->
         {created, #{
             id => <<"id">>,
             type => {calendar, day},
-            created_at => <<"2000-01-01T00:00:00Z">>
+            created_at => <<"2000-01-01T00:00:00Z">>,
+            currency => <<"USD">>
         }},
     Event = {ev, lim_time:machinery_now(), Created},
     ?assertEqual(Event, unmarshal(timestamped_change, marshal(timestamped_change, Event))).

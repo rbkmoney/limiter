@@ -10,7 +10,6 @@
 -export([get_plan/2]).
 -export([get_balance/2]).
 -export([get_default_currency/0]).
--export([create_account/0]).
 -export([create_account/1]).
 -export([create_account/2]).
 
@@ -139,14 +138,10 @@ construct_balance(
 get_default_currency() ->
     ?DEFAULT_CURRENCY.
 
--spec create_account() -> {ok, account_id()}.
-create_account() ->
-    {ok, LimitContext} = lim_context:create(woody_context:new()),
-    create_account(LimitContext).
-
--spec create_account(lim_context()) -> {ok, account_id()}.
-create_account(LimitContext) ->
-    create_account(?DEFAULT_CURRENCY, LimitContext).
+-spec create_account(currency()) -> {ok, account_id()}.
+create_account(CurrencyCode) ->
+    {ok, Context} = lim_context:create(woody_context:new()),
+    create_account(CurrencyCode, Context).
 
 -spec create_account(currency(), lim_context()) -> {ok, account_id()}.
 create_account(CurrencyCode, LimitContext) ->

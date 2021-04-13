@@ -128,56 +128,28 @@ handle_unknown_error(Error) ->
     erlang:error({unknown_error, Error}).
 
 -spec handle_forbidden_operation_amount_error(_) -> no_return().
-handle_forbidden_operation_amount_error(Error = #{body_type := cash}) ->
-    #{
-        type := Type,
-        partial := Partial,
-        full := Full,
-        currency := Currency
-    } = Error,
+handle_forbidden_operation_amount_error(#{
+    type := Type,
+    partial := Partial,
+    full := Full
+}) ->
     case Type of
         positive ->
             woody_error:raise(business, #limiter_ForbiddenOperationAmount{
-                amount = {cash, ?CASH(Partial, Currency)},
+                amount = Partial,
                 allowed_range =
-                    {cash, #limiter_base_CashRange{
-                        upper = {inclusive, ?CASH(Full, Currency)},
-                        lower = {inclusive, ?CASH(0, Currency)}
-                    }}
-            });
-        negative ->
-            woody_error:raise(business, #limiter_ForbiddenOperationAmount{
-                amount = {cash, ?CASH(Partial, Currency)},
-                allowed_range =
-                    {cash, #limiter_base_CashRange{
-                        upper = {inclusive, ?CASH(0, Currency)},
-                        lower = {inclusive, ?CASH(Full, Currency)}
-                    }}
-            })
-    end;
-handle_forbidden_operation_amount_error(Error = #{body_type := amount}) ->
-    #{
-        type := Type,
-        partial := Partial,
-        full := Full
-    } = Error,
-    case Type of
-        positive ->
-            woody_error:raise(business, #limiter_ForbiddenOperationAmount{
-                amount = {amount, Partial},
-                allowed_range =
-                    {amount, #limiter_base_AmountRange{
+                    #limiter_base_AmountRange{
                         upper = {inclusive, Full},
                         lower = {inclusive, 0}
-                    }}
+                    }
             });
         negative ->
             woody_error:raise(business, #limiter_ForbiddenOperationAmount{
-                amount = {amount, Partial},
+                amount = Partial,
                 allowed_range =
-                    {amount, #limiter_base_AmountRange{
+                    #limiter_base_AmountRange{
                         upper = {inclusive, 0},
                         lower = {inclusive, Full}
-                    }}
+                    }
             })
     end.

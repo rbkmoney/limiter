@@ -6,6 +6,7 @@
 -export([created_at/1]).
 -export([type/1]).
 -export([ranges/1]).
+-export([currency/1]).
 
 %% API
 
@@ -40,11 +41,13 @@
 -type lim_id() :: lim_config_machine:lim_id().
 -type time_range_type() :: lim_config_machine:time_range_type().
 -type time_range() :: lim_config_machine:time_range().
+-type currency() :: lim_config_machine:currency().
 
 -type limit_range_state() :: #{
     id := lim_id(),
     type := time_range_type(),
     created_at := timestamp(),
+    currency => currency(),
     ranges => [time_range_ext()]
 }.
 
@@ -58,7 +61,8 @@
 -type limit_range() :: #{
     id := lim_id(),
     type := time_range_type(),
-    created_at := timestamp()
+    created_at := timestamp(),
+    currency => currency()
 }.
 
 -type time_range_ext() :: #{
@@ -71,7 +75,8 @@
 -type create_params() :: #{
     id := lim_id(),
     type := time_range_type(),
-    created_at := timestamp()
+    created_at := timestamp(),
+    currency => currency()
 }.
 
 -type range_call() ::
@@ -103,6 +108,12 @@ ranges(#{ranges := Ranges}) ->
     Ranges;
 ranges(_State) ->
     [].
+
+-spec currency(limit_range_state()) -> currency().
+currency(#{currency := Currency}) ->
+    Currency;
+currency(_State) ->
+    lim_accounting:get_default_currency().
 
 %%% API
 
@@ -175,8 +186,9 @@ process_call({add_range, TimeRange0}, Machine, _HandlerArgs, _HandlerOpts) ->
     State = collapse(Machine),
     case find_time_range(TimeRange0, ranges(State)) of
         {error, notfound} ->
-            {ok, AccountIDFrom} = lim_accounting:create_account(),
-            {ok, AccountIDTo} = lim_accounting:create_account(),
+            Currency = currency(State),
+            {ok, AccountIDFrom} = lim_accounting:create_account(Currency),
+            {ok, AccountIDTo} = lim_accounting:create_account(Currency),
             TimeRange1 = TimeRange0#{
                 account_id_from => AccountIDFrom,
                 account_id_to => AccountIDTo
