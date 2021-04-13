@@ -137,19 +137,17 @@ handle_forbidden_operation_amount_error(#{
         positive ->
             woody_error:raise(business, #limiter_ForbiddenOperationAmount{
                 amount = Partial,
-                allowed_range =
-                    #limiter_base_AmountRange{
-                        upper = {inclusive, Full},
-                        lower = {inclusive, 0}
-                    }
+                allowed_range = #limiter_base_AmountRange{
+                    upper = {inclusive, Full},
+                    lower = {inclusive, 0}
+                }
             });
         negative ->
             woody_error:raise(business, #limiter_ForbiddenOperationAmount{
                 amount = Partial,
-                allowed_range =
-                    #limiter_base_AmountRange{
-                        upper = {inclusive, 0},
-                        lower = {inclusive, Full}
-                    }
+                allowed_range = #limiter_base_AmountRange{
+                    upper = {inclusive, 0},
+                    lower = {inclusive, Full}
+                }
             })
     end.

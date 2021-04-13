@@ -101,8 +101,6 @@ marshal_scope_type(wallet) ->
 marshal_scope_type(identity) ->
     {identity, #limiter_config_LimitScopeTypeIdentity{}}.
 
-
-
 %%
 
 -spec unmarshal(type_name(), encoded_value()) -> decoded_value().

@@ -88,6 +88,7 @@ unmarshal_event(1, EncodedChange, Context) ->
 -spec test() -> _.
 
 -spec marshal_unmarshal_created_test() -> _.
+
 marshal_unmarshal_created_test() ->
     Created =
         {created, #{
@@ -104,8 +105,8 @@ marshal_unmarshal_created_test() ->
             description => <<"description">>
         }},
     Event = {ev, lim_time:machinery_now(), Created},
-    {Marshaled, _ } = marshal_event(1, Event, {}),
-    {Unmarshaled, _ } = unmarshal_event(1, Marshaled, {}),
+    {Marshaled, _} = marshal_event(1, Event, {}),
+    {Unmarshaled, _} = unmarshal_event(1, Marshaled, {}),
     ?assertEqual(Event, Unmarshaled).
 
 -endif.

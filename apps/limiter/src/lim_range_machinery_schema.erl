@@ -88,29 +88,32 @@ unmarshal_event(1, EncodedChange, Context) ->
 -spec test() -> _.
 
 -spec marshal_unmarshal_created_test() -> _.
+
 marshal_unmarshal_created_test() ->
-    Created = {created, #{
-        id => <<"id">>,
-        type => {calendar, day},
-        created_at => <<"2000-01-01T00:00:00Z">>,
-        currency => <<"USD">>
-    }},
+    Created =
+        {created, #{
+            id => <<"id">>,
+            type => {calendar, day},
+            created_at => <<"2000-01-01T00:00:00Z">>,
+            currency => <<"USD">>
+        }},
     Event = {ev, lim_time:machinery_now(), Created},
-    {Marshaled, _ } = marshal_event(1, Event, {}),
-    {Unmarshaled, _ } = unmarshal_event(1, Marshaled, {}),
+    {Marshaled, _} = marshal_event(1, Event, {}),
+    {Unmarshaled, _} = unmarshal_event(1, Marshaled, {}),
     ?assertEqual(Event, Unmarshaled).
 
 -spec marshal_unmarshal_time_range_created_test() -> _.
 marshal_unmarshal_time_range_created_test() ->
-    TimeRangeCreated = {time_range_created, #{
-        account_id_from => 25,
-        account_id_to => 175,
-        upper => <<"2000-01-01T00:00:00Z">>,
-        lower => <<"2000-01-01T00:00:00Z">>
-    }},
+    TimeRangeCreated =
+        {time_range_created, #{
+            account_id_from => 25,
+            account_id_to => 175,
+            upper => <<"2000-01-01T00:00:00Z">>,
+            lower => <<"2000-01-01T00:00:00Z">>
+        }},
     Event = {ev, lim_time:machinery_now(), TimeRangeCreated},
-    {Marshaled, _ } = marshal_event(1, Event, {}),
-    {Unmarshaled, _ } = unmarshal_event(1, Marshaled, {}),
+    {Marshaled, _} = marshal_event(1, Event, {}),
+    {Unmarshaled, _} = unmarshal_event(1, Marshaled, {}),
     ?assertEqual(Event, Unmarshaled).
 
 -endif.

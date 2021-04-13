@@ -138,8 +138,7 @@ get_from_context(payment_processing, ValueName, LimContext = #{context := Contex
 get_from_context(_, _ValueName, _LimContext) ->
     {error, notfound}.
 
--spec get_from_context(context_type(), atom(), context_operation(), t()) ->
-    {ok, term()} | {error, notfound}.
+-spec get_from_context(context_type(), atom(), context_operation(), t()) -> {ok, term()} | {error, notfound}.
 get_from_context(payment_processing, ValueName, Op, #{context := #{payment_processing := Context}}) ->
     case get_payment_processing_operation_context(Op, Context) of
         {ok, OperationContext} ->
@@ -186,7 +185,10 @@ unmarshal_context(#limiter_context_LimitContext{payment_processing = PaymentProc
 unmarshal_context(_) ->
     #{}.
 
-unmarshal_payment_processing_context(#limiter_context_ContextPaymentProcessing{op = {Operation, _}, invoice = Invoice}) ->
+unmarshal_payment_processing_context(#limiter_context_ContextPaymentProcessing{
+    op = {Operation, _},
+    invoice = Invoice
+}) ->
     genlib_map:compact(#{
         op => Operation,
         invoice => maybe_unmarshal(Invoice, fun unmarshal_payment_processing_invoice/1)
@@ -207,7 +209,10 @@ unmarshal_payment_processing_invoice(#limiter_context_Invoice{
         shop_id => maybe_unmarshal(ShopID, fun unmarshal_string/1),
         cost => maybe_unmarshal(Cost, fun unmarshal_cash/1),
         created_at => maybe_unmarshal(CreatedAt, fun unmarshal_string/1),
-        effective_adjustment => maybe_unmarshal(EffectiveAdjustment, fun unmarshal_payment_processing_invoice_adjustment/1),
+        effective_adjustment => maybe_unmarshal(
+            EffectiveAdjustment,
+            fun unmarshal_payment_processing_invoice_adjustment/1
+        ),
         effective_payment => maybe_unmarshal(EffectivePayment, fun unmarshal_payment_processing_invoice_payment/1)
     }).
 
@@ -238,9 +243,15 @@ unmarshal_payment_processing_invoice_payment(#limiter_context_InvoicePayment{
         created_at => maybe_unmarshal(CreatedAt, fun unmarshal_string/1),
         flow => maybe_unmarshal(Flow, fun unmarshal_payment_processing_invoice_payment_flow/1),
         payer => maybe_unmarshal(Payer, fun unmarshal_payment_processing_invoice_payment_payer/1),
-        effective_adjustment => maybe_unmarshal(EffectiveAdjustment, fun unmarshal_payment_processing_invoice_payment_adjustment/1),
+        effective_adjustment => maybe_unmarshal(
+            EffectiveAdjustment,
+            fun unmarshal_payment_processing_invoice_payment_adjustment/1
+        ),
         effective_refund => maybe_unmarshal(EffectiveRefund, fun unmarshal_payment_processing_invoice_payment_refund/1),
-        effective_chargeback => maybe_unmarshal(EffectiveChargeback, fun unmarshal_payment_processing_invoice_payment_chargeback/1)
+        effective_chargeback => maybe_unmarshal(
+            EffectiveChargeback,
+            fun unmarshal_payment_processing_invoice_payment_chargeback/1
+        )
     }).
 
 unmarshal_payment_processing_invoice_payment_flow({Flow, _}) ->

@@ -23,8 +23,7 @@
 -export_type([cash/0]).
 -export_type([get_body_error/0]).
 
--spec get_body(body_type(), config(), lim_context:t()) ->
-    {ok, t()} | {error, get_body_error()}.
+-spec get_body(body_type(), config(), lim_context:t()) -> {ok, t()} | {error, get_body_error()}.
 get_body(BodyType, Config = #{body_type := {cash, ConfigCurrency}}, LimitContext) ->
     ContextType = lim_config_machine:context_type(Config),
     {ok, Operation} = lim_context:get_operation(ContextType, LimitContext),
@@ -62,7 +61,6 @@ get_body_for_operation(full, invoice_payment_refund, Config, LimitContext) ->
 get_body_for_operation(full, invoice_payment_chargeback = Operation, Config, LimitContext) ->
     ContextType = lim_config_machine:context_type(Config),
     lim_context:get_from_context(ContextType, body, Operation, LimitContext);
-
 get_body_for_operation(partial, invoice, _Config, _LimitContext) ->
     {error, notfound};
 get_body_for_operation(partial, invoice_adjustment, _Config, _LimitContext) ->
@@ -78,7 +76,6 @@ get_body_for_operation(partial, invoice_payment_refund = Operation, Config, Limi
 get_body_for_operation(partial, invoice_payment_chargeback, _Config, _LimitContext) ->
     {error, notfound}.
 
--spec create_body_from_cash(amount(), currency()) ->
-    t().
+-spec create_body_from_cash(amount(), currency()) -> t().
 create_body_from_cash(Amount, Currency) ->
     {cash, #{amount => Amount, currency => Currency}}.

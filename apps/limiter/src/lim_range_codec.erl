@@ -28,11 +28,14 @@ marshal(change, {created, Range}) ->
     {created, #limiter_range_CreatedChange{limit_range = marshal(range, Range)}};
 marshal(change, {time_range_created, TimeRange}) ->
     {time_range_created, #limiter_range_TimeRangeCreatedChange{time_range = marshal(time_range, TimeRange)}};
-marshal(range, Range = #{
-    id := ID,
-    type := Type,
-    created_at := CreatedAt
-}) ->
+marshal(
+    range,
+    Range = #{
+        id := ID,
+        type := Type,
+        created_at := CreatedAt
+    }
+) ->
     #limiter_range_LimitRange{
         id = ID,
         type = marshal(time_range_type, Type),

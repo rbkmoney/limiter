@@ -48,6 +48,7 @@
     upper := timestamp(),
     lower := timestamp()
 }.
+
 -type context_type() :: lim_context:context_type().
 
 -type config() :: #{
@@ -111,7 +112,7 @@
     {created, config()}.
 
 -type args(T) :: machinery:args(T).
--type machine() :: machinery:machine(event(),_).
+-type machine() :: machinery:machine(event(), _).
 -type handler_args() :: machinery:handler_args(_).
 -type handler_opts() :: machinery:handler_opts(_).
 -type result() :: machinery:result(timestamped_event(event()), none()).

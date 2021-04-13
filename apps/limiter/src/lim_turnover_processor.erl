@@ -67,10 +67,11 @@ hold(LimitChange = #limiter_LimitChange{id = LimitID}, Config = #{body_type := B
         {ok, Timestamp} = lim_context:get_from_context(payment_processing, created_at, LimitContext),
         {ok, Body} = lim_body:get_body(full, Config, LimitContext),
         LimitRangeID = construct_range_id(LimitID, Timestamp, Config, LimitContext),
-        Currency = case BodyType of
-            {cash, CashCurrency} -> CashCurrency;
-            amount -> undefined
-        end,
+        Currency =
+            case BodyType of
+                {cash, CashCurrency} -> CashCurrency;
+                amount -> undefined
+            end,
         CreateParams = genlib_map:compact(#{
             id => LimitRangeID,
             type => lim_config_machine:time_range_type(Config),
