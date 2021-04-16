@@ -1,19 +1,23 @@
 -module(lim_client).
 
--include_lib("damsel/include/dmsl_proto_limiter_thrift.hrl").
+-include_lib("limiter_proto/include/lim_limiter_thrift.hrl").
+-include_lib("limiter_proto/include/lim_configurator_thrift.hrl").
 
 -export([new/0]).
 -export([get/3]).
--export([hold/2]).
--export([commit/2]).
--export([partial_commit/2]).
--export([rollback/2]).
+-export([hold/3]).
+-export([commit/3]).
+
+-export([create_config/2]).
+-export([get_config/2]).
 
 -type client() :: woody_context:ctx().
 
--type limit_id() :: dmsl_proto_limiter_thrift:'LimitID'().
--type limit_change() :: dmsl_proto_limiter_thrift:'LimitChange'().
--type timestamp() :: dmsl_base_thrift:'Timestamp'().
+-type limit_id() :: lim_limiter_thrift:'LimitID'().
+-type limit_change() :: lim_limiter_thrift:'LimitChange'().
+-type limit_context() :: lim_limiter_thrift:'LimitContext'().
+-type clock() :: lim_limiter_thrift:'Clock'().
+-type limit_config_params() :: lim_limiter_config_thrift:'LimitCreateParams'().
 
 %%% API
 
@@ -21,25 +25,27 @@
 new() ->
     woody_context:new().
 
--spec get(limit_id(), timestamp(), client()) -> woody:result() | no_return().
-get(LimitID, Timestamp, Client) ->
-    call('Get', {LimitID, Timestamp}, Client).
+-spec get(limit_id(), limit_context(), client()) -> woody:result() | no_return().
+get(LimitID, Context, Client) ->
+    call('Get', {LimitID, clock(), Context}, Client).
 
--spec hold(limit_change(), client()) -> woody:result() | no_return().
-hold(LimitChange, Client) ->
-    call('Hold', {LimitChange}, Client).
+-spec hold(limit_change(), limit_context(), client()) -> woody:result() | no_return().
+hold(LimitChange, Context, Client) ->
+    call('Hold', {LimitChange, clock(), Context}, Client).
 
--spec commit(limit_change(), client()) -> woody:result() | no_return().
-commit(LimitChange, Client) ->
-    call('Commit', {LimitChange}, Client).
+-spec commit(limit_change(), limit_context(), client()) -> woody:result() | no_return().
+commit(LimitChange, Context, Client) ->
+    call('Commit', {LimitChange, clock(), Context}, Client).
 
--spec partial_commit(limit_change(), client()) -> woody:result() | no_return().
-partial_commit(LimitChange, Client) ->
-    call('PartialCommit', {LimitChange}, Client).
+%%
 
--spec rollback(limit_change(), client()) -> woody:result() | no_return().
-rollback(LimitChange, Client) ->
-    call('Rollback', {LimitChange}, Client).
+-spec create_config(limit_config_params(), client()) -> woody:result() | no_return().
+create_config(LimitCreateParams, Client) ->
+    call_configurator('Create', {LimitCreateParams}, Client).
+
+-spec get_config(limit_id(), client()) -> woody:result() | no_return().
+get_config(LimitConfigID, Client) ->
+    call_configurator('Get', {LimitConfigID}, Client).
 
 %%% Internal functions
 
@@ -54,3 +60,19 @@ call(Function, Args, Client) ->
         }
     },
     woody_client:call(Call, Opts, Client).
+
+-spec call_configurator(atom(), tuple(), client()) -> woody:result() | no_return().
+call_configurator(Function, Args, Client) ->
+    Call = {{lim_configurator_thrift, 'Configurator'}, Function, Args},
+    Opts = #{
+        url => <<"http://limiter:8022/v1/configurator">>,
+        event_handler => scoper_woody_event_handler,
+        transport_opts => #{
+            max_connections => 10000
+        }
+    },
+    woody_client:call(Call, Opts, Client).
+
+-spec clock() -> clock().
+clock() ->
+    {vector, #limiter_VectorClock{state = <<>>}}.

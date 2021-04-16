@@ -126,8 +126,9 @@ partial_commit(PartialBody, LimitChange = #limiter_LimitChange{id = LimitID}, Co
             LimitRangeID,
             LimitContext
         ),
+        TimeRange = lim_config_machine:calculate_time_range(Timestamp, Config),
         {ok, #{account_id_from := AccountIDFrom, account_id_to := AccountIDTo}} =
-            lim_range_machine:get_range(Timestamp, LimitRangeState),
+            lim_range_machine:get_range(TimeRange, LimitRangeState),
 
         PartialPostings = lim_p_transfer:construct_postings(AccountIDFrom, AccountIDTo, PartialBody),
         FullPostings = lim_p_transfer:construct_postings(AccountIDFrom, AccountIDTo, FullBody),

@@ -120,7 +120,7 @@
 -export_type([timestamped_event/1]).
 -export_type([event/0]).
 
--define(NS, 'lim_config/v1').
+-define(NS, 'lim/config_v1').
 
 %% Handler behaviour
 
@@ -215,8 +215,13 @@ context_type(#{context_type := Value}) ->
 start(ID, Params, LimitContext) ->
     {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
     Config = genlib_map:compact(Params#{id => ID, created_at => lim_time:now()}),
-    _ = machinery:start(?NS, ID, [{created, Config}], get_backend(WoodyCtx)),
-    {ok, Config}.
+    case machinery:start(?NS, ID, [{created, Config}], get_backend(WoodyCtx)) of
+        ok ->
+            {ok, Config};
+        {error, exists} ->
+            {ok, Machine} = machinery:get(?NS, ID, get_backend(WoodyCtx)),
+            {ok, collapse(Machine)}
+    end.
 
 -spec get(lim_id(), lim_context()) -> {ok, config()} | {error, notfound}.
 get(ID, LimitContext) ->
@@ -256,8 +261,8 @@ rollback(LimitChange = #limiter_LimitChange{id = ID}, LimitContext) ->
 
 get_handler(ID, LimitContext) ->
     do(fun() ->
-        Config = #{processor := Processor} = unwrap(config, get(ID, LimitContext)),
-        {ok, Handler} = lim_router:get_handler(Processor),
+        Config = #{processor_type := ProcessorType} = unwrap(config, get(ID, LimitContext)),
+        {ok, Handler} = lim_router:get_handler(ProcessorType),
         {Handler, Config}
     end).
 
@@ -573,8 +578,12 @@ not_implemented(What) ->
 
 %%
 
--spec apply_event(event(), lim_maybe:maybe(config())) -> config().
-apply_event({created, Config}, undefined) ->
+-spec apply_event(timestamped_event(event()), lim_maybe:maybe(config())) -> config().
+apply_event({_ID, _Ts, {ev, _EvTs, Event}}, Config) ->
+    apply_event_(Event, Config).
+
+-spec apply_event_(event(), lim_maybe:maybe(config())) -> config().
+apply_event_({created, Config}, undefined) ->
     Config.
 
 %%

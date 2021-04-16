@@ -74,4 +74,4 @@ distclean:
 
 # CALL_W_CONTAINER
 test: submodules
-	$(REBAR) ct
+	$(REBAR) do eunit, ct

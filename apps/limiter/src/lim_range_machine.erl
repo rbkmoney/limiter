@@ -85,7 +85,7 @@
 -export_type([timestamped_event/1]).
 -export_type([event/0]).
 
--define(NS, 'lim_range/v1').
+-define(NS, 'lim/range_v1').
 
 -import(lim_pipeline, [do/1, unwrap/1, unwrap/2]).
 
@@ -127,7 +127,7 @@ ensure_exist(Params = #{id := ID}, LimitContext) ->
     {ok, WoodyCtx} = lim_context:woody_context(LimitContext),
     case get_state(ID, WoodyCtx) of
         {ok, State} ->
-            State;
+            {ok, State};
         {error, notfound} ->
             _ = start(ID, Params, WoodyCtx),
             case get_state(ID, WoodyCtx) of
@@ -138,9 +138,9 @@ ensure_exist(Params = #{id := ID}, LimitContext) ->
             end
     end.
 
--spec get_range(timestamp(), limit_range_state()) -> {ok, time_range_ext()} | {error, notfound}.
-get_range(Timestamp, State) ->
-    find_time_range(Timestamp, ranges(State)).
+-spec get_range(time_range(), limit_range_state()) -> {ok, time_range_ext()} | {error, notfound}.
+get_range(TimeRange, State) ->
+    find_time_range(TimeRange, ranges(State)).
 
 -spec get_range_balance(timestamp(), limit_range_state(), lim_context()) ->
     {ok, lim_accounting:balance()}
@@ -193,9 +193,9 @@ process_call({add_range, TimeRange0}, Machine, _HandlerArgs, _HandlerOpts) ->
                 account_id_from => AccountIDFrom,
                 account_id_to => AccountIDTo
             },
-            {{ok, TimeRange1}, #{events => emit_events([{time_range_created, TimeRange1}])}};
+            {TimeRange1, #{events => emit_events([{time_range_created, TimeRange1}])}};
         {ok, Range} ->
-            {{ok, Range}, #{}}
+            {Range, #{}}
     end.
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) -> no_return().
@@ -253,10 +253,14 @@ not_implemented(What) ->
 
 %%
 
--spec apply_event(event(), lim_maybe:maybe(limit_range_state())) -> limit_range_state().
-apply_event({created, LimitRange}, undefined) ->
+-spec apply_event(timestamped_event(event()), lim_maybe:maybe(limit_range_state())) -> limit_range_state().
+apply_event({_ID, _Ts, {ev, _EvTs, Event}}, Config) ->
+    apply_event_(Event, Config).
+
+-spec apply_event_(event(), lim_maybe:maybe(limit_range_state())) -> limit_range_state().
+apply_event_({created, LimitRange}, undefined) ->
     LimitRange;
-apply_event({time_range_created, TimeRange}, LimitRange = #{ranges := Ranges}) ->
+apply_event_({time_range_created, TimeRange}, LimitRange = #{ranges := Ranges}) ->
     LimitRange#{ranges => [TimeRange | Ranges]};
-apply_event({time_range_created, TimeRange}, LimitRange) ->
+apply_event_({time_range_created, TimeRange}, LimitRange) ->
     LimitRange#{ranges => [TimeRange]}.

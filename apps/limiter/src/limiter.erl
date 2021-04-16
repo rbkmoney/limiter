@@ -31,8 +31,8 @@ init([]) ->
     Healthcheck = enable_health_logging(genlib_app:env(?MODULE, health_check, #{})),
 
     {Backends, MachineHandlers, ModernizerHandlers} = lists:unzip3([
-        contruct_backend_childspec('lim_range/v1', lim_range_machine),
-        contruct_backend_childspec('lim_config/v1', lim_config_machine)
+        contruct_backend_childspec('lim/range_v1', lim_range_machine),
+        contruct_backend_childspec('lim/config_v1', lim_config_machine)
     ]),
     ok = application:set_env(limiter, backends, maps:from_list(Backends)),
 
@@ -129,7 +129,7 @@ construct_machinery_backend_spec(NS, Schema) ->
         }}}.
 
 construct_machinery_handler_spec(NS, Handler, Schema) ->
-    {{limiter, #{handler => Handler}}, #{
+    {Handler, #{
         path => lim_string:join(["/v1/stateproc/", NS]),
         backend_config => #{schema => Schema}
     }}.
@@ -140,9 +140,9 @@ construct_machinery_modernizer_spec(NS, Schema) ->
         backend_config => #{schema => Schema}
     }.
 
-get_namespace_schema('lim_range/v1') ->
+get_namespace_schema('lim/range_v1') ->
     lim_range_machinery_schema;
-get_namespace_schema('lim_config/v1') ->
+get_namespace_schema('lim/config_v1') ->
     lim_config_machinery_schema.
 
 get_service_client(ServiceID) ->

@@ -4,13 +4,13 @@ erlang:
     secret_cookie_file: "/opt/machinegun/etc/cookie"
 
 namespaces:
-    limit_cfg:
+    lim/config_v1:
         processor:
-            url: http://limiter:8022/v1/stateproc/limit_cfg
+            url: http://limiter:8022/v1/stateproc/lim/config_v1
             pool_size: 500
-    limit:
+    lim/range_v1:
         processor:
-            url: http://limiter:8022/v1/stateproc/limit
+            url: http://limiter:8022/v1/stateproc/lim/range_v1
             pool_size: 500
 
 storage:
