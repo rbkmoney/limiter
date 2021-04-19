@@ -10,7 +10,6 @@
 -export([get_plan/2]).
 -export([get_balance/2]).
 -export([get_default_currency/0]).
--export([create_account/1]).
 -export([create_account/2]).
 
 -type currency() :: dmsl_domain_thrift:'CurrencySymbolicCode'().
@@ -137,11 +136,6 @@ construct_balance(
 -spec get_default_currency() -> currency().
 get_default_currency() ->
     ?DEFAULT_CURRENCY.
-
--spec create_account(currency()) -> {ok, account_id()}.
-create_account(CurrencyCode) ->
-    {ok, Context} = lim_context:create(woody_context:new()),
-    create_account(CurrencyCode, Context).
 
 -spec create_account(currency(), lim_context()) -> {ok, account_id()}.
 create_account(CurrencyCode, LimitContext) ->

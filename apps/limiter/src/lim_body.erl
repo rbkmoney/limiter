@@ -31,7 +31,7 @@ get_body(BodyType, Config = #{body_type := {cash, ConfigCurrency}}, LimitContext
         {ok, {cash, #{currency := ConfigCurrency}}} = Result ->
             Result;
         {ok, {cash, #{amount := Amount, currency := Currency}}} ->
-            case lim_rates:get_converted_amount(ConfigCurrency, {Amount, Currency}, LimitContext) of
+            case lim_rates:get_converted_amount({Amount, Currency}, Config, LimitContext) of
                 {ok, ConvertedAmount} ->
                     {ok, create_body_from_cash(ConvertedAmount, ConfigCurrency)};
                 Error ->

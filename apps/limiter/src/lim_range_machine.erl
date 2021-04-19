@@ -182,13 +182,14 @@ init(Events, _Machine, _HandlerArgs, _HandlerOpts) ->
 
 -spec process_call(args(range_call()), machine(), handler_args(), handler_opts()) ->
     {response(time_range_ext()), result()} | no_return().
-process_call({add_range, TimeRange0}, Machine, _HandlerArgs, _HandlerOpts) ->
+process_call({add_range, TimeRange0}, Machine, _HandlerArgs, #{woody_ctx := WoodyCtx}) ->
     State = collapse(Machine),
     case find_time_range(TimeRange0, ranges(State)) of
         {error, notfound} ->
             Currency = currency(State),
-            {ok, AccountIDFrom} = lim_accounting:create_account(Currency),
-            {ok, AccountIDTo} = lim_accounting:create_account(Currency),
+            {ok, LimitContext} = lim_context:create(WoodyCtx),
+            {ok, AccountIDFrom} = lim_accounting:create_account(Currency, LimitContext),
+            {ok, AccountIDTo} = lim_accounting:create_account(Currency, LimitContext),
             TimeRange1 = TimeRange0#{
                 account_id_from => AccountIDFrom,
                 account_id_to => AccountIDTo
