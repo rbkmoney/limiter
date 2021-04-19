@@ -119,7 +119,7 @@ commit_with_default_exchange(C) ->
         id = ID,
         change_id = LimitChangeID
     },
-    ok = hold_and_commit(Change, Context, Client),
+    {ok, {vector, _}} = hold_and_commit(Change, Context, Client),
     {ok, #limiter_Limit{amount = 10000}} = lim_client:get(ID, Context, Client).
 
 -spec partial_commit_with_exchange(config()) -> _.
@@ -152,7 +152,7 @@ partial_commit_with_exchange(C) ->
         id = ID,
         change_id = LimitChangeID
     },
-    ok = hold_and_commit(Change, Context, Client),
+    {ok, {vector, _}} = hold_and_commit(Change, Context, Client),
     {ok, #limiter_Limit{amount = 8400}} = lim_client:get(ID, Context, Client).
 
 -spec commit_with_exchange(config()) -> _.
@@ -179,7 +179,7 @@ commit_with_exchange(C) ->
         id = ID,
         change_id = LimitChangeID
     },
-    ok = hold_and_commit(Change, Context, Client),
+    {ok, {vector, _}} = hold_and_commit(Change, Context, Client),
     {ok, #limiter_Limit{amount = 10500}} = lim_client:get(ID, Context, Client).
 
 -spec get_rate(config()) -> _.
@@ -259,7 +259,7 @@ commit_ok(C) ->
         id = ID,
         change_id = LimitChangeID
     },
-    ok = hold_and_commit(Change, Context, Client),
+    {ok, {vector, _}} = hold_and_commit(Change, Context, Client),
     {ok, #limiter_Limit{}} = lim_client:get(ID, Context, Client).
 
 -spec rollback_ok(config()) -> _.
@@ -290,7 +290,7 @@ rollback_ok(C) ->
         id = ID,
         change_id = LimitChangeID
     },
-    ok = hold_and_commit(Change, Context, Client),
+    {ok, {vector, _}} = hold_and_commit(Change, Context, Client),
     {ok, #limiter_Limit{}} = lim_client:get(ID, Context, Client).
 
 -spec get_config_ok(config()) -> _.
