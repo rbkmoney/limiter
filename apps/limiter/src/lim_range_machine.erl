@@ -142,12 +142,12 @@ ensure_exist(Params = #{id := ID}, LimitContext) ->
 get_range(TimeRange, State) ->
     find_time_range(TimeRange, ranges(State)).
 
--spec get_range_balance(timestamp(), limit_range_state(), lim_context()) ->
+-spec get_range_balance(time_range(), limit_range_state(), lim_context()) ->
     {ok, lim_accounting:balance()}
     | {error, {range, notfound}}.
-get_range_balance(Timestamp, State, LimitContext) ->
+get_range_balance(TimeRange, State, LimitContext) ->
     do(fun() ->
-        #{account_id_to := AccountID} = unwrap(range, find_time_range(Timestamp, ranges(State))),
+        #{account_id_to := AccountID} = unwrap(range, find_time_range(TimeRange, ranges(State))),
         {ok, Balance} = lim_accounting:get_balance(AccountID, LimitContext),
         Balance
     end).
@@ -181,7 +181,7 @@ init(Events, _Machine, _HandlerArgs, _HandlerOpts) ->
     }.
 
 -spec process_call(args(range_call()), machine(), handler_args(), handler_opts()) ->
-    {response({ok, time_range_ext()}), result()} | no_return().
+    {response(time_range_ext()), result()} | no_return().
 process_call({add_range, TimeRange0}, Machine, _HandlerArgs, _HandlerOpts) ->
     State = collapse(Machine),
     case find_time_range(TimeRange0, ranges(State)) of
@@ -253,7 +253,8 @@ not_implemented(What) ->
 
 %%
 
--spec apply_event(timestamped_event(event()), lim_maybe:maybe(limit_range_state())) -> limit_range_state().
+-spec apply_event(machinery:event(timestamped_event(event())), lim_maybe:maybe(limit_range_state())) ->
+    limit_range_state().
 apply_event({_ID, _Ts, {ev, _EvTs, Event}}, Config) ->
     apply_event_(Event, Config).
 

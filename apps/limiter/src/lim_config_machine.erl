@@ -578,7 +578,7 @@ not_implemented(What) ->
 
 %%
 
--spec apply_event(timestamped_event(event()), lim_maybe:maybe(config())) -> config().
+-spec apply_event(machinery:event(timestamped_event(event())), lim_maybe:maybe(config())) -> config().
 apply_event({_ID, _Ts, {ev, _EvTs, Event}}, Config) ->
     apply_event_(Event, Config).
 

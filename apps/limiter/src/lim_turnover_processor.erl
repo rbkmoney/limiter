@@ -51,8 +51,9 @@ get_limit(LimitID, Config, LimitContext) ->
         {ok, Timestamp} = lim_context:get_from_context(payment_processing, created_at, LimitContext),
         LimitRangeID = construct_range_id(LimitID, Timestamp, Config, LimitContext),
         LimitRange = unwrap(limit, lim_range_machine:get(LimitRangeID, LimitContext)),
+        TimeRange = lim_config_machine:calculate_time_range(Timestamp, Config),
         #{own_amount := Amount} =
-            unwrap(lim_range_machine:get_range_balance(Timestamp, LimitRange, LimitContext)),
+            unwrap(lim_range_machine:get_range_balance(TimeRange, LimitRange, LimitContext)),
         #limiter_Limit{
             id = LimitRangeID,
             amount = Amount,
