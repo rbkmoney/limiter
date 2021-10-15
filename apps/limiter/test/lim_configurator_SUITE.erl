@@ -13,6 +13,7 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
+-export([legacy_create_config/1]).
 -export([create_config/1]).
 -export([get_config/1]).
 
@@ -32,6 +33,7 @@ all() ->
 groups() ->
     [
         {default, [], [
+            legacy_create_config,
             create_config,
             get_config
         ]}
@@ -71,8 +73,8 @@ end_per_testcase(_Name, _C) ->
 
 %%
 
--spec create_config(config()) -> _.
-create_config(_C) ->
+-spec legacy_create_config(config()) -> _.
+legacy_create_config(_C) ->
     Client = lim_client:new(),
     Params = #limiter_cfg_LimitCreateParams{
         id = <<"ID">>,
@@ -80,6 +82,25 @@ create_config(_C) ->
         description = <<"description">>,
         started_at = <<"2000-01-01T00:00:00Z">>,
         body_type = {cash, #limiter_config_LimitBodyTypeCash{currency = <<"RUB">>}}
+    },
+    {ok, #limiter_config_LimitConfig{}} = lim_client:legacy_create_config(Params, Client).
+
+-spec create_config(config()) -> _.
+create_config(_C) ->
+    Client = lim_client:new(),
+    Params = #limiter_config_LimitConfigParams{
+        id = <<"ID">>,
+        description = <<"description">>,
+        started_at = <<"2000-01-01T00:00:00Z">>,
+        body_type = {cash, #limiter_config_LimitBodyTypeCash{currency = <<"RUB">>}},
+        shard_size = 4,
+        time_range_type = {calendar, {week, #time_range_TimeRangeTypeCalendarWeek{}}},
+        type = {turnover, #limiter_config_LimitTypeTurnover{}},
+        scope = {scope, {shop, #limiter_config_LimitScopeTypeShop{}}},
+        op_behaviour = #limiter_config_OperationLimitBehaviour{
+            invoice_payment_refund = {addition, #limiter_config_Addition{}}
+        },
+        context_type = {payment_processing, #limiter_config_LimitContextTypePaymentProcessing{}}
     },
     {ok, #limiter_config_LimitConfig{}} = lim_client:create_config(Params, Client).
 
@@ -100,5 +121,5 @@ prepare_environment(ID, LimitName, _C) ->
         started_at = <<"2000-01-01T00:00:00Z">>,
         body_type = {cash, #limiter_config_LimitBodyTypeCash{currency = <<"RUB">>}}
     },
-    {ok, LimitConfig} = lim_client:create_config(Params, Client),
+    {ok, LimitConfig} = lim_client:legacy_create_config(Params, Client),
     #{config => LimitConfig, client => Client}.

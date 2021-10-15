@@ -8,6 +8,7 @@
 -export([hold/3]).
 -export([commit/3]).
 
+-export([legacy_create_config/2]).
 -export([create_config/2]).
 -export([get_config/2]).
 
@@ -38,6 +39,10 @@ commit(LimitChange, Context, Client) ->
     call('Commit', {LimitChange, clock(), Context}, Client).
 
 %%
+
+-spec legacy_create_config(limit_config_params(), client()) -> woody:result() | no_return().
+legacy_create_config(LimitCreateParams, Client) ->
+    call_configurator('CreateLegacy', {LimitCreateParams}, Client).
 
 -spec create_config(limit_config_params(), client()) -> woody:result() | no_return().
 create_config(LimitCreateParams, Client) ->

@@ -7,6 +7,7 @@
 -export([marshal_config/1]).
 -export([unmarshal_body_type/1]).
 -export([unmarshal_op_behaviour/1]).
+-export([unmarshal_params/1]).
 -export([maybe_apply/2]).
 
 %% Types
@@ -139,6 +140,32 @@ unmarshal_timestamp(Timestamp) when is_binary(Timestamp) ->
         error:Error:St ->
             erlang:raise(error, {bad_timestamp, Timestamp, Error}, St)
     end.
+
+-spec unmarshal_params(encoded_value()) -> decoded_value().
+unmarshal_params(#limiter_config_LimitConfigParams{
+    id = ID,
+    description = Description,
+    body_type = BodyType,
+    started_at = StartedAt,
+    shard_size = ShardSize,
+    time_range_type = TimeRangeType,
+    context_type = ContextType,
+    type = Type,
+    scope = Scope,
+    op_behaviour = OpBehaviour
+}) ->
+    genlib_map:compact(#{
+        id => ID,
+        body_type => unmarshal_body_type(BodyType),
+        started_at => StartedAt,
+        shard_size => ShardSize,
+        time_range_type => unmarshal_time_range_type(TimeRangeType),
+        context_type => unmarshal_context_type(ContextType),
+        type => maybe_apply(Type, fun unmarshal_type/1),
+        scope => maybe_apply(Scope, fun unmarshal_scope/1),
+        description => Description,
+        op_behaviour => maybe_apply(OpBehaviour, fun unmarshal_op_behaviour/1)
+    }).
 
 unmarshal_change({created, #limiter_config_CreatedChange{limit_config = Config}}) ->
     {created, unmarshal_config(Config)}.

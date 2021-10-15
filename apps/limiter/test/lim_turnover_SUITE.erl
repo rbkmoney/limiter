@@ -336,5 +336,5 @@ prepare_environment(ID, LimitName, _C) ->
             invoice_payment_refund = {subtraction, #limiter_config_Subtraction{}}
         }
     },
-    {ok, LimitConfig} = lim_client:create_config(Params, Client),
+    {ok, LimitConfig} = lim_client:legacy_create_config(Params, Client),
     #{config => LimitConfig, client => Client}.
