@@ -94,6 +94,15 @@ mk_limit_config(<<"ShopDayTurnover">>) ->
         context_type => payment_processing,
         time_range_type => {calendar, day}
     }};
+mk_limit_config(<<"PartyDayTurnover">>) ->
+    {ok, #{
+        processor_type => <<"TurnoverProcessor">>,
+        type => turnover,
+        scope => {scope, party},
+        shard_size => 7,
+        context_type => payment_processing,
+        time_range_type => {calendar, day}
+    }};
 mk_limit_config(<<"ShopMonthTurnover">>) ->
     {ok, #{
         processor_type => <<"TurnoverProcessor">>,
