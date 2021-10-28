@@ -103,10 +103,14 @@ marshal_context_type(payment_processing) ->
 marshal_type(turnover) ->
     {turnover, #limiter_config_LimitTypeTurnover{}}.
 
-marshal_scope({scope, Type}) ->
-    {scope, marshal_scope_type(Type)};
-marshal_scope(global) ->
-    {scope_global, #limiter_config_LimitScopeGlobal{}}.
+marshal_scope(Scope) ->
+    Fun = fun
+        ({scope, Type}) ->
+            {scope, marshal_scope_type(Type)};
+        (global) ->
+            {scope_global, #limiter_config_LimitScopeGlobal{}}
+    end,
+    [Fun(S) || S <- Scope].
 
 marshal_scope_type(party) ->
     {party, #limiter_config_LimitScopeTypeParty{}};
@@ -162,7 +166,7 @@ unmarshal_params(#limiter_config_LimitConfigParams{
         time_range_type => unmarshal_time_range_type(TimeRangeType),
         context_type => unmarshal_context_type(ContextType),
         type => maybe_apply(Type, fun unmarshal_type/1),
-        scope => maybe_apply(Scope, fun unmarshal_scope/1),
+        scope => unmarshal_scope(Scope, undefined),
         description => Description,
         op_behaviour => maybe_apply(OpBehaviour, fun unmarshal_op_behaviour/1)
     }).
@@ -181,6 +185,7 @@ unmarshal_config(#limiter_config_LimitConfig{
     time_range_type = TimeRangeType,
     context_type = ContextType,
     type = Type,
+    scope_deprecated = ScopeOld,
     scope = Scope,
     op_behaviour = OpBehaviour
 }) ->
@@ -194,7 +199,7 @@ unmarshal_config(#limiter_config_LimitConfig{
         time_range_type => unmarshal_time_range_type(TimeRangeType),
         context_type => unmarshal_context_type(ContextType),
         type => maybe_apply(Type, fun unmarshal_type/1),
-        scope => maybe_apply(Scope, fun unmarshal_scope/1),
+        scope => unmarshal_scope(Scope, ScopeOld),
         description => Description,
         op_behaviour => maybe_apply(OpBehaviour, fun unmarshal_op_behaviour/1)
     }).
@@ -239,6 +244,11 @@ unmarshal_context_type({payment_processing, #limiter_config_LimitContextTypePaym
 unmarshal_type({turnover, #limiter_config_LimitTypeTurnover{}}) ->
     turnover.
 
+unmarshal_scope([_ | _] = Scope, ScopeOld) ->
+    [unmarshal_scope(S) || S <- [ScopeOld | Scope], S =/= undefined];
+unmarshal_scope(undefined, ScopeOld) ->
+    maybe_apply(ScopeOld, fun unmarshal_scope/1).
+
 unmarshal_scope({scope, Type}) ->
     {scope, unmarshal_scope_type(Type)};
 unmarshal_scope({scope_global, #limiter_config_LimitScopeGlobal{}}) ->
@@ -274,7 +284,7 @@ marshal_unmarshal_created_test() ->
             time_range_type => {calendar, day},
             context_type => payment_processing,
             type => turnover,
-            scope => {scope, party},
+            scope => [{scope, party}, {scope, shop}, global],
             description => <<"description">>
         }},
     Event = {ev, lim_time:machinery_now(), Created},

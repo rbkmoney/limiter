@@ -89,7 +89,7 @@ mk_limit_config(<<"ShopDayTurnover">>) ->
     {ok, #{
         processor_type => <<"TurnoverProcessor">>,
         type => turnover,
-        scope => {scope, shop},
+        scope => [{scope, shop}],
         shard_size => 7,
         context_type => payment_processing,
         time_range_type => {calendar, day}
@@ -98,7 +98,7 @@ mk_limit_config(<<"PartyDayTurnover">>) ->
     {ok, #{
         processor_type => <<"TurnoverProcessor">>,
         type => turnover,
-        scope => {scope, party},
+        scope => [{scope, party}],
         shard_size => 7,
         context_type => payment_processing,
         time_range_type => {calendar, day}
@@ -107,7 +107,7 @@ mk_limit_config(<<"ShopMonthTurnover">>) ->
     {ok, #{
         processor_type => <<"TurnoverProcessor">>,
         type => turnover,
-        scope => {scope, shop},
+        scope => [{scope, shop}],
         shard_size => 12,
         context_type => payment_processing,
         time_range_type => {calendar, month}
@@ -116,7 +116,7 @@ mk_limit_config(<<"PartyMonthTurnover">>) ->
     {ok, #{
         processor_type => <<"TurnoverProcessor">>,
         type => turnover,
-        scope => {scope, party},
+        scope => [{scope, party}],
         shard_size => 12,
         context_type => payment_processing,
         time_range_type => {calendar, month}
@@ -125,7 +125,7 @@ mk_limit_config(<<"GlobalMonthTurnover">>) ->
     {ok, #{
         processor_type => <<"TurnoverProcessor">>,
         type => turnover,
-        scope => global,
+        scope => [global],
         shard_size => 12,
         context_type => payment_processing,
         time_range_type => {calendar, month}

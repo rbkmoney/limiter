@@ -35,7 +35,7 @@
  {<<"jsx">>,{pkg,<<"jsx">>,<<"3.0.0">>},1},
  {<<"limiter_proto">>,
   {git,"git@github.com:rbkmoney/limiter-proto.git",
-       {ref,"2e2cdab859222648e389dc74867b5273e73583e9"}},
+       {ref,"10c206e3fb6ef849a81beb8b153a1a7f19ef726d"}},
   0},
  {<<"machinery">>,
   {git,"https://github.com/rbkmoney/machinery.git",
