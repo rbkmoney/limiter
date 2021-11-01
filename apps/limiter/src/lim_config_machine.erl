@@ -14,7 +14,7 @@
 -export([time_range_type/1]).
 -export([processor_type/1]).
 -export([type/1]).
--export([scope/1]).
+-export([scopes/1]).
 -export([context_type/1]).
 -export([op_behaviour/1]).
 
@@ -63,7 +63,7 @@
     time_range_type := time_range_type(),
     context_type := context_type(),
     type => limit_type(),
-    scope => limit_scopes(),
+    scopes => limit_scopes(),
     description => description(),
     op_behaviour => op_behaviour()
 }.
@@ -76,7 +76,7 @@
     time_range_type := time_range_type(),
     context_type := context_type(),
     type => limit_type(),
-    scope => limit_scopes(),
+    scopes => limit_scopes(),
     description => description(),
     op_behaviour => op_behaviour()
 }.
@@ -204,10 +204,10 @@ type(#{type := Value}) ->
 type(_) ->
     undefined.
 
--spec scope(config()) -> lim_maybe:maybe(limit_scopes()).
-scope(#{scope := Value}) ->
+-spec scopes(config()) -> lim_maybe:maybe(limit_scopes()).
+scopes(#{scopes := Value}) ->
     Value;
-scope(_) ->
+scopes(_) ->
     undefined.
 
 -spec context_type(config()) -> context_type().
@@ -536,7 +536,7 @@ mk_shard_id(Prefix, Units0, ShardSize) ->
     <<Prefix/binary, "/", ID/binary>>.
 
 -spec mk_scope_prefix(config(), lim_context()) -> {ok, prefix()}.
-mk_scope_prefix(#{scope := Scope}, LimitContext) ->
+mk_scope_prefix(#{scopes := Scope}, LimitContext) ->
     Fun = fun
         (global, Acc) ->
             Acc;
