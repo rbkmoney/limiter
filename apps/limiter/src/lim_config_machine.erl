@@ -39,8 +39,7 @@
 -type description() :: binary().
 
 -type limit_type() :: turnover.
--type limit_scope() :: global | {scope, party | shop | wallet | identity}.
--type limit_scopes() :: [limit_scope()].
+-type limit_scopes() :: global | {scopes, sets:set(party | shop | wallet | identity)}.
 -type body_type() :: {cash, currency()} | amount.
 -type shard_size() :: pos_integer().
 -type shard_id() :: binary().
@@ -536,19 +535,21 @@ mk_shard_id(Prefix, Units0, ShardSize) ->
     <<Prefix/binary, "/", ID/binary>>.
 
 -spec mk_scope_prefix(config(), lim_context()) -> {ok, prefix()}.
-mk_scope_prefix(#{scopes := Scope}, LimitContext) ->
+mk_scope_prefix(#{scopes := global}, _LimitContext) ->
+    {ok, <<>>};
+mk_scope_prefix(#{scopes := {scopes, Types}}, LimitContext) ->
     Fun = fun
-        (global, Acc) ->
-            Acc;
-        ({scope, party}, Acc) ->
+        (party, Acc) ->
             {ok, PartyID} = lim_context:get_from_context(payment_processing, owner_id, invoice, LimitContext),
             <<Acc/binary, "/", PartyID/binary>>;
-        ({scope, shop}, Acc) ->
+        (shop, Acc) ->
             {ok, PartyID} = lim_context:get_from_context(payment_processing, owner_id, invoice, LimitContext),
             {ok, ShopID} = lim_context:get_from_context(payment_processing, shop_id, invoice, LimitContext),
-            <<Acc/binary, "/", PartyID/binary, "/", ShopID/binary>>
+            <<Acc/binary, "/", PartyID/binary, "/", ShopID/binary>>;
+        (_, Acc) ->
+            Acc
     end,
-    {ok, lists:foldl(Fun, <<>>, Scope)}.
+    {ok, lists:foldl(Fun, <<>>, Types)}.
 
 %%% Machinery callbacks
 

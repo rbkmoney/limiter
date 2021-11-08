@@ -101,7 +101,7 @@ marshal_unmarshal_created_test() ->
             time_range_type => {calendar, day},
             context_type => payment_processing,
             type => turnover,
-            scopes => [{scope, party}],
+            scopes => {scopes, [party]},
             description => <<"description">>
         }},
     Event = {ev, lim_time:machinery_now(), Created},
