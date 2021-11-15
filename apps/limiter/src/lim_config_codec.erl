@@ -63,7 +63,7 @@ marshal_config(Config) ->
         time_range_type = marshal_time_range_type(lim_config_machine:time_range_type(Config)),
         context_type = marshal_context_type(lim_config_machine:context_type(Config)),
         type = maybe_apply(lim_config_machine:type(Config), fun marshal_type/1),
-        scope = maybe_apply(lim_config_machine:scope(Config), fun marshal_scope/1),
+        scopes = maybe_apply(lim_config_machine:scopes(Config), fun marshal_scopes/1),
         op_behaviour = maybe_apply(lim_config_machine:op_behaviour(Config), fun marshal_op_behaviour/1)
     }.
 
@@ -103,9 +103,9 @@ marshal_context_type(payment_processing) ->
 marshal_type(turnover) ->
     {turnover, #limiter_config_LimitTypeTurnover{}}.
 
-marshal_scope({scope, Type}) ->
-    {scope, marshal_scope_type(Type)};
-marshal_scope(global) ->
+marshal_scopes({scopes, [_ | _] = Types}) ->
+    {scopes, ordsets:from_list([marshal_scope_type(T) || T <- Types])};
+marshal_scopes(global) ->
     {scope_global, #limiter_config_LimitScopeGlobal{}}.
 
 marshal_scope_type(party) ->
@@ -151,7 +151,7 @@ unmarshal_params(#limiter_config_LimitConfigParams{
     time_range_type = TimeRangeType,
     context_type = ContextType,
     type = Type,
-    scope = Scope,
+    scopes = Scopes,
     op_behaviour = OpBehaviour
 }) ->
     genlib_map:compact(#{
@@ -162,7 +162,7 @@ unmarshal_params(#limiter_config_LimitConfigParams{
         time_range_type => unmarshal_time_range_type(TimeRangeType),
         context_type => unmarshal_context_type(ContextType),
         type => maybe_apply(Type, fun unmarshal_type/1),
-        scope => maybe_apply(Scope, fun unmarshal_scope/1),
+        scopes => maybe_apply(Scopes, fun unmarshal_scopes/1),
         description => Description,
         op_behaviour => maybe_apply(OpBehaviour, fun unmarshal_op_behaviour/1)
     }).
@@ -181,7 +181,7 @@ unmarshal_config(#limiter_config_LimitConfig{
     time_range_type = TimeRangeType,
     context_type = ContextType,
     type = Type,
-    scope = Scope,
+    scopes = Scopes,
     op_behaviour = OpBehaviour
 }) ->
     genlib_map:compact(#{
@@ -194,7 +194,7 @@ unmarshal_config(#limiter_config_LimitConfig{
         time_range_type => unmarshal_time_range_type(TimeRangeType),
         context_type => unmarshal_context_type(ContextType),
         type => maybe_apply(Type, fun unmarshal_type/1),
-        scope => maybe_apply(Scope, fun unmarshal_scope/1),
+        scopes => maybe_apply(Scopes, fun unmarshal_scopes/1),
         description => Description,
         op_behaviour => maybe_apply(OpBehaviour, fun unmarshal_op_behaviour/1)
     }).
@@ -239,9 +239,11 @@ unmarshal_context_type({payment_processing, #limiter_config_LimitContextTypePaym
 unmarshal_type({turnover, #limiter_config_LimitTypeTurnover{}}) ->
     turnover.
 
-unmarshal_scope({scope, Type}) ->
-    {scope, unmarshal_scope_type(Type)};
-unmarshal_scope({scope_global, #limiter_config_LimitScopeGlobal{}}) ->
+unmarshal_scopes({scopes, [_ | _] = Types}) ->
+    {scopes, ordsets:from_list([unmarshal_scope_type(T) || T <- Types])};
+unmarshal_scopes({scope_deprecated, T}) ->
+    {scopes, [unmarshal_scope_type(T)]};
+unmarshal_scopes({scope_global, #limiter_config_LimitScopeGlobal{}}) ->
     global.
 
 unmarshal_scope_type({party, _}) ->
@@ -274,7 +276,7 @@ marshal_unmarshal_created_test() ->
             time_range_type => {calendar, day},
             context_type => payment_processing,
             type => turnover,
-            scope => {scope, party},
+            scopes => {scopes, [party, shop]},
             description => <<"description">>
         }},
     Event = {ev, lim_time:machinery_now(), Created},

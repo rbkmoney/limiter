@@ -14,7 +14,7 @@
 -export([time_range_type/1]).
 -export([processor_type/1]).
 -export([type/1]).
--export([scope/1]).
+-export([scopes/1]).
 -export([context_type/1]).
 -export([op_behaviour/1]).
 
@@ -39,7 +39,7 @@
 -type description() :: binary().
 
 -type limit_type() :: turnover.
--type limit_scope() :: global | {scope, party | shop | wallet | identity}.
+-type limit_scopes() :: global | {scopes, ordsets:ordset(party | shop | wallet | identity)}.
 -type body_type() :: {cash, currency()} | amount.
 -type shard_size() :: pos_integer().
 -type shard_id() :: binary().
@@ -62,7 +62,7 @@
     time_range_type := time_range_type(),
     context_type := context_type(),
     type => limit_type(),
-    scope => limit_scope(),
+    scopes => limit_scopes(),
     description => description(),
     op_behaviour => op_behaviour()
 }.
@@ -75,7 +75,7 @@
     time_range_type := time_range_type(),
     context_type := context_type(),
     type => limit_type(),
-    scope => limit_scope(),
+    scopes => limit_scopes(),
     description => description(),
     op_behaviour => op_behaviour()
 }.
@@ -91,8 +91,6 @@
 
 -export_type([config/0]).
 -export_type([body_type/0]).
--export_type([limit_type/0]).
--export_type([limit_scope/0]).
 -export_type([time_range_type/0]).
 -export_type([time_range/0]).
 -export_type([create_params/0]).
@@ -205,10 +203,10 @@ type(#{type := Value}) ->
 type(_) ->
     undefined.
 
--spec scope(config()) -> lim_maybe:maybe(limit_scope()).
-scope(#{scope := Value}) ->
+-spec scopes(config()) -> lim_maybe:maybe(limit_scopes()).
+scopes(#{scopes := Value}) ->
     Value;
-scope(_) ->
+scopes(_) ->
     undefined.
 
 -spec context_type(config()) -> context_type().
@@ -537,15 +535,21 @@ mk_shard_id(Prefix, Units0, ShardSize) ->
     <<Prefix/binary, "/", ID/binary>>.
 
 -spec mk_scope_prefix(config(), lim_context()) -> {ok, prefix()}.
-mk_scope_prefix(#{scope := global}, _LimitContext) ->
+mk_scope_prefix(#{scopes := global}, _LimitContext) ->
     {ok, <<>>};
-mk_scope_prefix(#{scope := {scope, party}}, LimitContext) ->
-    {ok, PartyID} = lim_context:get_from_context(payment_processing, owner_id, invoice, LimitContext),
-    {ok, <<"/", PartyID/binary>>};
-mk_scope_prefix(#{scope := {scope, shop}}, LimitContext) ->
-    {ok, PartyID} = lim_context:get_from_context(payment_processing, owner_id, invoice, LimitContext),
-    {ok, ShopID} = lim_context:get_from_context(payment_processing, shop_id, invoice, LimitContext),
-    {ok, <<"/", PartyID/binary, "/", ShopID/binary>>}.
+mk_scope_prefix(#{scopes := {scopes, Types}}, LimitContext) ->
+    Fun = fun
+        (party, Acc) ->
+            {ok, PartyID} = lim_context:get_from_context(payment_processing, owner_id, invoice, LimitContext),
+            <<Acc/binary, "/", PartyID/binary>>;
+        (shop, Acc) ->
+            {ok, PartyID} = lim_context:get_from_context(payment_processing, owner_id, invoice, LimitContext),
+            {ok, ShopID} = lim_context:get_from_context(payment_processing, shop_id, invoice, LimitContext),
+            <<Acc/binary, "/", PartyID/binary, "/", ShopID/binary>>;
+        (_, Acc) ->
+            Acc
+    end,
+    {ok, lists:foldl(Fun, <<>>, Types)}.
 
 %%% Machinery callbacks
 

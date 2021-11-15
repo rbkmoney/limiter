@@ -96,7 +96,7 @@ create_config(_C) ->
         shard_size = 4,
         time_range_type = {calendar, {week, #time_range_TimeRangeTypeCalendarWeek{}}},
         type = {turnover, #limiter_config_LimitTypeTurnover{}},
-        scope = {scope, {shop, #limiter_config_LimitScopeTypeShop{}}},
+        scopes = {scopes, [{shop, #limiter_config_LimitScopeTypeShop{}}]},
         op_behaviour = #limiter_config_OperationLimitBehaviour{
             invoice_payment_refund = {addition, #limiter_config_Addition{}}
         },
