@@ -39,7 +39,7 @@
 -type description() :: binary().
 
 -type limit_type() :: turnover.
--type limit_scopes() :: global | {scopes, sets:set(party | shop | wallet | identity)}.
+-type limit_scopes() :: global | {scopes, ordsets:ordset(party | shop | wallet | identity)}.
 -type body_type() :: {cash, currency()} | amount.
 -type shard_size() :: pos_integer().
 -type shard_id() :: binary().
